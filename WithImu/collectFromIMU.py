@@ -5,7 +5,7 @@ import time
 PORT = '/dev/ttyACM0'         # Change to your Arduino's port (e.g., '/dev/ttyACM0' on Linux)
 BAUD_RATE = 9600    # Match the Serial.begin(XXXX) speed in your Arduino sketch
 OUTPUT_FILE = "imu_raw_data.txt"
-COLLECTION_TIME_SECS = 20  # Duration for testing (Set to 7200 for a 2-hour run!)
+COLLECTION_TIME_SECS = 3600 * 5  # Duration for testing (Set to 7200 for a 2-hour run!)
 
 print(f"Opening port {PORT}...")
 try:
@@ -35,7 +35,7 @@ with open(OUTPUT_FILE, "w") as f:
                 
                 if line:  # Check if we got valid text
                     # Print to console so you can see it working in real-time
-                    print(line) 
+                   # print(line) 
                     
                     # Write to your text file
                     f.write(line + "\n")
