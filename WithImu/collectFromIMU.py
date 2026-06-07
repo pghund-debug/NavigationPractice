@@ -3,9 +3,9 @@ import time
 
 # --- Configuration ---
 PORT = '/dev/ttyACM0'         # Change to your Arduino's port (e.g., '/dev/ttyACM0' on Linux)
-BAUD_RATE = 9600    # Match the Serial.begin(XXXX) speed in your Arduino sketch
+BAUD_RATE = 115200    # Match the Serial.begin(XXXX) speed in your Arduino sketch
 OUTPUT_FILE = "imu_raw_data.txt"
-COLLECTION_TIME_SECS = 3600 * 5  # Duration for testing (Set to 7200 for a 2-hour run!)
+COLLECTION_TIME_SECS = 3600 * 3
 
 print(f"Opening port {PORT}...")
 try:
