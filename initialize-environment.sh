@@ -14,6 +14,7 @@ else
 	pip install scipy
 	pip install pillow
 	pip install matplotlib
+	pip install pyserial
 fi
 
 
