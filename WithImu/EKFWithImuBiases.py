@@ -6,6 +6,7 @@ from IMUv1 import IMUSimulator
 radius = 20
 omega = 0.5
 includeGPS = True
+plotBiases = False
 
 # --- EKF Initialization ---
 # State: [x, y, velocity, heading]
@@ -68,17 +69,31 @@ history_ekf_x, history_ekf_y = [], []
 history_ekf2_x, history_ekf2_y = [], []
 rese_history_x, rese_history_y, rese_t = [], [], []
 rese2_history_x, rese2_history_y= [], []
+history_gyrob, history_accb = [], []
+history_truegyrob, history_trueaccb = [], []
 
-# Bottom Plot: Residuals (z - Hx)
-ax2.set_xlim(0, 60 * totalTime / dt) # Number of simulation steps
-ax2.set_ylim(-radius * 0.5, radius * 0.5)   # Error in meters
-ax2.set_title("GPS Residuals (Innovation)")
-ax2.set_ylabel("Error (m)")
-rese_x_line, = ax2.plot([], [], 'k-', label='EKFX-Residual', alpha=0.6)
-#rese_y_line, = ax2.plot([], [], 'k-', label='EKFY-Residual', alpha=0.6)
-rese2_x_line, = ax2.plot([], [], 'b-', label='EKFBX-Residual', alpha=0.6)
-#rese2_y_line, = ax2.plot([], [], 'b-', label='EKFBY-Residual', alpha=0.6)
-ax2.legend()
+if plotBiases:
+    ax2.set_xlim(0, 60 * totalTime) # Number of simulation steps
+    ax2.set_xlabel("Seconds")
+    ax2.set_ylim(-0.05, 0.16)
+    ax2.set_title("bias estimate")
+    acc_line, = ax2.plot([], [], 'g-', label='acc bias estimate', alpha=0.6)
+    gyro_line, = ax2.plot([], [], 'b-', label='gyro bias estimate', alpha=0.6)
+    trueacc_line, = ax2.plot([], [], 'g:', label='true acc bias', alpha=0.6)
+    truegyro_line, = ax2.plot([], [], 'b:', label='true gyro bias', alpha=0.6)
+    ax2.legend()
+
+else:
+    # Bottom Plot: Residuals (z - Hx)
+    ax2.set_xlim(0, 60 * totalTime) # Number of simulation steps
+    ax2.set_ylim(-radius * 0.5, radius * 0.5)   # Error in meters
+    ax2.set_title("GPS Residuals (Innovation)")
+    ax2.set_ylabel("Error (m)")
+    rese_x_line, = ax2.plot([], [], 'k-', label='EKFX-Residual', alpha=0.6)
+    #rese_y_line, = ax2.plot([], [], 'k-', label='EKFY-Residual', alpha=0.6)
+    rese2_x_line, = ax2.plot([], [], 'b-', label='EKFBX-Residual', alpha=0.6)
+    #rese2_y_line, = ax2.plot([], [], 'b-', label='EKFBY-Residual', alpha=0.6)
+    ax2.legend()
 
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
@@ -89,7 +104,7 @@ for i in range(int(60 * totalTime / dt)):
     curr_x = radius * np.cos(omega * t)
     curr_y = radius * np.sin(omega * t)
     
-    a, omegahat = IMU.generate_measurements(true_a_body = 0, true_omega = omega)
+    a, omegahat, trueGyroBias, trueAccelBias = IMU.generate_measurements(true_a_body = 0, true_omega = omega)
     a_corr = a - xe_hat2[4,0] # raw_accel - b_a
     w_corr = omegahat - xe_hat2[5,0] # raw_gyro - b_w
 
@@ -147,12 +162,16 @@ for i in range(int(60 * totalTime / dt)):
         PE2 = (np.eye(6) - KE2 @ H2) @ PE2
         
         # Store residuals for plotting
-        rese_t.append(i)
+        rese_t.append(i * 0.05)
         rese_history_x.append(residuale[0,0])
         rese_history_y.append(residuale[1,0])
         rese2_history_x.append(residuale2[0,0])
         rese2_history_y.append(residuale2[1,0])
 
+        history_accb.append(xe_hat2[4,0])
+        history_gyrob.append(xe_hat2[5,0])
+        history_trueaccb.append(trueAccelBias)
+        history_truegyrob.append(trueGyroBias)
         gps_dot.set_data([z[0,0]], [z[1,0]])
 
     # 4. Visualization
@@ -167,12 +186,19 @@ for i in range(int(60 * totalTime / dt)):
     EKF_dot.set_data([xe_hat[0,0]], [xe_hat[1,0]])
     EKF2_dot.set_data([xe_hat2[0,0]], [xe_hat2[1,0]])
 
+    if plotBiases:
+        if rese_t:
+            acc_line.set_data(rese_t, history_accb)
+            gyro_line.set_data(rese_t, history_gyrob)
+            trueacc_line.set_data(rese_t, history_trueaccb)
+            truegyro_line.set_data(rese_t, history_truegyrob)
 
-    if rese_t: # Only plot if we have data
-        rese_x_line.set_data(rese_t, rese_history_x)
-        rese2_x_line.set_data(rese_t, rese2_history_x)
-        #rese_y_line.set_data(rese_t, rese_history_y)
-        #rese_y_line2.set_data(rese_t, rese2_history_y)
+    else:
+        if rese_t: # Only plot if we have data
+            rese_x_line.set_data(rese_t, rese_history_x)
+            rese2_x_line.set_data(rese_t, rese2_history_x)
+            #rese_y_line.set_data(rese_t, rese_history_y)
+            #rese_y_line2.set_data(rese_t, rese2_history_y)
     
-    plt.pause(0.01)
+  #  plt.pause(0.01)
 plt.ioff(); plt.show()

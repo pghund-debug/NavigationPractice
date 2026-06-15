@@ -37,4 +37,4 @@ class IMUSimulator:
         measured_omega  = true_omega + self.gyro_bias + gyro_noise
         measured_a_body = true_a_body + self.accel_bias + accel_noise
         
-        return measured_a_body, measured_omega
+        return measured_a_body, measured_omega, self.gyro_bias, self.accel_bias
