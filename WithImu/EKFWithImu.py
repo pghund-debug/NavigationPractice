@@ -4,7 +4,7 @@ from IMUv1 import IMUSimulator
 
 radius = 20
 omega = 0.5
-includeGPS = False
+includeGPS = True
 
 # --- EKF Initialization ---
 # State: [x, y, velocity, heading]
@@ -57,7 +57,6 @@ for i in range(300):
     curr_x = radius * np.cos(omega * t)
     curr_y = radius * np.sin(omega * t)
     
-
     a, omegahat = IMU.generate_measurements(true_a_body = 0, true_omega = omega)
     
     # 2. EKF PREDICT: Move the state forward using trig
@@ -65,7 +64,6 @@ for i in range(300):
     xe_hat[1,0] += v * np.sin(theta) * dt + 1.0 / 2 * a * np.sin(theta) * dt**2
     xe_hat[2,0] += a * dt
     xe_hat[3,0] += omegahat * dt
-    # xe_hat[2,0] (velocity) and xe_hat[3,0] (theta) stay same in constant model
     
     # 2. LINEARIZE (The Jacobian G)
     # This is the derivative of the physics above
