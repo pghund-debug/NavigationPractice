@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 from IMUv1 import IMUSimulator
@@ -5,6 +6,7 @@ from IMUv1 import IMUSimulator
 radius = 20
 omega = 0.5
 includeGPS = True
+GPSvar = 1
 
 # --- EKF Initialization ---
 # State: [x, y, velocity, heading]
@@ -79,8 +81,8 @@ for i in range(300):
 
     # 3. KF UPDATE (Every 10 frames when GPS "arrives")
     if i % 10 == 0 and includeGPS:
-        z = np.array([[curr_x + np.random.normal(0, 0.1)], 
-                      [curr_y + np.random.normal(0, 0.1)]])
+        z = np.array([[curr_x + np.random.normal(0, math.sqrt(GPSvar))], 
+                      [curr_y + np.random.normal(0, math.sqrt(GPSvar))]])
        
         # RESIDUAL calculation (This is the "Surprise")
         residuale = z - H @ xe_hat
