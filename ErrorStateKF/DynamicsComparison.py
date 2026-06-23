@@ -2,19 +2,20 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from IMUv1 import IMUSimulator
+from datetime import datetime
 
 radius = 20
 omega = 0.5
 includeGPS = True
-plotBiases = False
 GPSoutage = 30 #seconds
 
 # --- EKF Initialization ---
-xe_hat = np.array([[radius], [0.0], [5.0], [np.pi/2], [0.1], [0.1]])
 xes_hat = np.array([radius, 0.0, 5.0, np.pi/2]) #the nominal states do not include bias estimates 
+xes2_hat = np.array([radius, 0.0, 5.0, np.pi/2]) #the nominal states do not include bias estimates 
 error_states = np.array([[0], [0], [0], [0], [0], [0]])
-P = np.eye(6) * 0.1
+error_states2 = np.array([[0], [0], [0], [0], [0], [0]])
 Perror = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5])
+Perror2 = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5])
 
 dt = 0.01
 totalTime = 1 #minutes
@@ -41,7 +42,6 @@ var_bw_walk = (sigma_gyro_walk ** 2) * dt
 GPS_var = 2.25
 
 # Noise Covariances
-
 Q = np.diag([
     0.0, 0.0, 
     (sigma_accel_white**2) * dt, 
@@ -62,64 +62,43 @@ ax1.set_xlim(-radius * 1.5, radius * 1.5); ax1.set_ylim(-radius * 1.5, radius * 
 ax1.set_title("Drone Navigation")
 ax1.grid(True)
 drone_dot, = ax1.plot([], [], 'go', label='Truth')
-ekf_path, = ax1.plot([], [], 'k--', label='EKF')
 eskf_path, = ax1.plot([], [], 'b--', label='ESKF')
-#EKF_dot, = ax1.plot([], [], 'ko', label='EKF')
-#ESKF_dot, = ax1.plot([], [], 'bo', label='ESKF')
+eskf2_path, = ax1.plot([], [], 'k--', label='ESKF2')
 gps_dot, = ax1.plot([], [], 'rx', alpha=0.5, label='GPS')
 ax1.legend()
 
-history_ekf_x, history_ekf_y = [], []
 history_eskf_x, history_eskf_y = [], []
-rese_history_x, rese_history_y, rese_t = [], [], []
+history_eskf2_x, history_eskf2_y = [], []
+reses2_history_x, reses2_history_y, rese_t = [], [], []
 reses_history_x, reses_history_y= [], []
-history_gyrob, history_accb = [], []
-history_truegyrob, history_trueaccb = [], []
 
-if plotBiases:
-    ax2.set_xlim(0, 60 * totalTime) # Number of simulation steps
-    ax2.set_xlabel("Seconds")
-    ax2.set_ylim(-0.05, 0.16)
-    ax2.set_title("bias estimate")
-    acc_line, = ax2.plot([], [], 'g-', label='acc bias estimate', alpha=0.6)
-    gyro_line, = ax2.plot([], [], 'b-', label='gyro bias estimate', alpha=0.6)
-    trueacc_line, = ax2.plot([], [], 'g:', label='true acc bias', alpha=0.6)
-    truegyro_line, = ax2.plot([], [], 'b:', label='true gyro bias', alpha=0.6)
-    ax2.legend()
-
-else:
-    # Bottom Plot: Residuals (z - Hx)
-    ax2.set_xlim(0, 60 * totalTime) # Number of simulation steps
-    ax2.set_ylim(-radius * 0.5, radius * 0.5)   # Error in meters
-    ax2.set_title("GPS Residuals (Innovation)")
-    ax2.set_ylabel("Error (m)")
-    rese_x_line, = ax2.plot([], [], 'k-', label='EKFX-Residual', alpha=0.6)
-    #rese_y_line, = ax2.plot([], [], 'k-', label='EKFY-Residual', alpha=0.6)
-    reses_x_line, = ax2.plot([], [], 'b-', label='ESKFX-Residual', alpha=0.6)
-    #reses_y_line, = ax2.plot([], [], 'b-', label='ESKFY-Residual', alpha=0.6)
-    ax2.legend()
+# Bottom Plot: Residuals (z - Hx)
+ax2.set_xlim(0, 60 * totalTime) # Number of simulation steps
+ax2.set_ylim(-radius * 0.5, radius * 0.5)   # Error in meters
+ax2.set_title("GPS Residuals (Innovation)")
+ax2.set_ylabel("Error (m)")
+ax2.set_xlabel("Seconds")
+reses2_x_line, = ax2.plot([], [], 'k-', label='EKF2X-Residual', alpha=0.6)
+reses_x_line, = ax2.plot([], [], 'b-', label='ESKFX-Residual', alpha=0.6)
+ax2.legend()
+now = datetime.now()
 
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
-    _, _, v, theta, _,_ = xe_hat.flatten()
     t = i * dt
     # 1. Truth
     curr_x = radius * np.cos(omega * t)
     curr_y = radius * np.sin(omega * t)
     
     a, omegahat, trueGyroBias, trueAccelBias = IMU.generate_measurements(true_a_body = 0, true_omega = omega)
-    a_corr = a - xe_hat[4,0] # raw_accel - b_a
-    w_corr = omegahat - xe_hat[5,0] # raw_gyro - b_w
     a_corrES = a - error_states[4] # raw_accel - b_a
     w_corrES = omegahat - error_states[5] # raw_gyro - b_w
+    a_corrES2 = a - error_states2[4] # raw_accel - b_a
+    w_corrES2 = omegahat - error_states2[5] # raw_gyro - b_w
 
     # 2. EKF PREDICT: Move the state forward using trig
-    xe_hat[0,0] += v * np.cos(theta) * dt 
-    xe_hat[1,0] += v * np.sin(theta) * dt 
-    xe_hat[2,0] += a_corr * dt
-    xe_hat[3,0] += w_corr * dt
-    
     xES, yES, vES, thetaES = xes_hat
+    xES2, yES2, vES2, thetaES2 = xes2_hat
     
     xES     += vES * np.cos(thetaES) * dt
     yES     += vES * np.sin(thetaES) * dt
@@ -127,18 +106,14 @@ for i in range(int(60 * totalTime / dt)):
     thetaES += w_corrES[0] * dt
     xes_hat = np.array([xES, yES, vES, thetaES])
 
+    xES2     += vES2 * np.cos(thetaES2) * dt + 1.0 / 2 * a_corrES2[0] * np.cos(thetaES2) * dt**2
+    yES2     += vES2 * np.sin(thetaES2) * dt + 1.0 / 2 * a_corrES2[0] * np.sin(thetaES2) * dt**2
+    vES2     += a_corrES2[0] * dt
+    thetaES2 += w_corrES2[0] * dt
+    xes2_hat = np.array([xES2, yES2, vES2, thetaES2])
+    
     # 2. LINEARIZE
-
     # This is the derivative of the physics above
-    G = np.array([
-        [1, 0, np.cos(theta)*dt, -(v*np.sin(theta)*dt ), 0, 0],
-        [0, 1, np.sin(theta)*dt,  (v*np.cos(theta)*dt ), 0, 0],
-        [0, 0, 1, 0, -dt, 0],
-        [0, 0, 0, 1, 0, -dt],
-        [0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 1]
-    ])
-
     F = np.eye(6)
     F[0, 2] = np.cos(thetaES) * dt
     F[0, 3] = -vES * np.sin(thetaES) * dt
@@ -147,9 +122,16 @@ for i in range(int(60 * totalTime / dt)):
     F[2, 4] = -dt
     F[3, 5] = -dt
 
+    F2 = np.eye(6)
+    F2[0, 2] = np.cos(thetaES2) * dt
+    F2[0, 3] = -vES2 * np.sin(thetaES2) * dt - 0.5 * a_corrES2[0] * np.sin(thetaES2) * dt**2
+    F2[1, 2] = np.sin(thetaES2) * dt 
+    F2[1, 3] = vES2 * np.cos(thetaES2) * dt + 0.5 * a_corrES2[0] * np.cos(thetaES2) * dt**2
+    F2[2, 4] = -dt
+    F2[3, 5] = -dt
     # Update Covariance using the Jacobian
-    P = G @ P @ G.T + Q
     Perror = F @ Perror @ F.T + Q
+    Perror2 = F2 @ Perror2 @ F2.T + Q
 
 
     # 3. KF UPDATE (Every 100 frames when GPS "arrives")
@@ -158,63 +140,55 @@ for i in range(int(60 * totalTime / dt)):
                       [curr_y + np.random.normal(0, math.sqrt(GPS_var))]])
        
         # RESIDUAL calculation (This is the "Surprise")
-        residuale = z - H @ xe_hat
         residuales = z - np.array([[xes_hat[0]], [xes_hat[1]]])
+        residuales2 = z - np.array([[xes2_hat[0]], [xes2_hat[1]]])
 
         # Gain and Update
-        S = H @ P @ H.T + R
-        K = P @ H.T @ np.linalg.inv(S)
-        xe_hat = xe_hat + K @ (z - H @ xe_hat)
-        P = (np.eye(6) - K @ H) @ P
-        
         Serror = H @ Perror @ H.T + R
         Kerror = Perror @ H.T @ np.linalg.inv(Serror)
         error_states = Kerror @ residuales
         Perror = (np.eye(6) - Kerror @ H) @ Perror
+        
+        Serror2 = H @ Perror2 @ H.T + R
+        Kerror2 = Perror2 @ H.T @ np.linalg.inv(Serror2)
+        error_states2 = Kerror2 @ residuales2
+        Perror2 = (np.eye(6) - Kerror2 @ H) @ Perror2
+
         # --- INJECTION STEP ---
         # Apply error estimations directly to nominal totals
         xes_hat[0] += error_states[0,0]  # Fix X
         xes_hat[ 1] += error_states[1,0]  # Fix Y
         xes_hat[ 2] += error_states[2,0]  # Fix Velocity
         xes_hat[ 3] += error_states[3,0]  # Fix Heading
+        
+        xes2_hat[0] += error_states2[0,0]  # Fix X
+        xes2_hat[ 1] += error_states2[1,0]  # Fix Y
+        xes2_hat[ 2] += error_states2[2,0]  # Fix Velocity
+        xes2_hat[ 3] += error_states2[3,0]  # Fix Heading
         # Store residuals for plotting
         rese_t.append(t)
-        rese_history_x.append(residuale[0,0])
-        rese_history_y.append(residuale[1,0])
         reses_history_x.append(residuales[0])
         reses_history_y.append(residuales[1])
+        reses2_history_x.append(residuales2[0])
+        reses2_history_y.append(residuales2[1])
 
-        history_accb.append(xe_hat[4,0])
-        history_gyrob.append(xe_hat[5,0])
-        history_trueaccb.append(trueAccelBias)
-        history_truegyrob.append(trueGyroBias)
         gps_dot.set_data([z[0,0]], [z[1,0]])
+        print(datetime.now()- now)
+        now = datetime.now()
 
     # 4. Visualization
-    history_ekf_x.append(xe_hat[0,0])
-    history_ekf_y.append(xe_hat[1,0])
     history_eskf_x.append(xes_hat[0])
     history_eskf_y.append(xes_hat[1])
-
-    drone_dot.set_data([curr_x], [curr_y])
-    ekf_path.set_data(history_ekf_x, history_ekf_y)
-    eskf_path.set_data(history_eskf_x, history_eskf_y)
-    #EKF_dot.set_data([xe_hat[0,0]], [xe_hat[1,0]])
-    #ESKF_dot.set_data([xes_hat[0]], [xes_hat[1]])
-
-    if plotBiases:
-        if rese_t:
-            acc_line.set_data(rese_t, history_accb)
-            gyro_line.set_data(rese_t, history_gyrob)
-            trueacc_line.set_data(rese_t, history_trueaccb)
-            truegyro_line.set_data(rese_t, history_truegyrob)
-
-    else:
-        if rese_t: # Only plot if we have data
-            rese_x_line.set_data(rese_t, rese_history_x)
-            reses_x_line.set_data(rese_t, reses_history_x)
-            #rese_y_line.set_data(rese_t, rese_history_y)
-            #reses_y_line.set_data(rese_t, reses_history_y)
+    history_eskf2_x.append(xes2_hat[0])
+    history_eskf2_y.append(xes2_hat[1])
     
-    plt.pause(0.0001)
+    drone_dot.set_data([curr_x], [curr_y])
+    eskf_path.set_data(history_eskf_x, history_eskf_y)
+    eskf2_path.set_data(history_eskf2_x, history_eskf2_y)
+
+    if rese_t: # Only plot if we have data
+        reses_x_line.set_data(rese_t, reses_history_x)
+        reses2_x_line.set_data(rese_t, reses2_history_x)
+    
+    plt.pause(0.001)
 plt.ioff(); plt.show()
