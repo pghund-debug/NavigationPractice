@@ -2,14 +2,14 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from IMUv1 import IMUSimulator
-from GPSv1 import get_satellite_positions
+from GPSv1 import GPSR
 
 radius = 20
 omega = 0.5
 plotBiases = False
 
 # --- EKF Initialization ---
-x_hat = np.array([radius, 0.0, 5.0, np.pi/2, 0.0, 0.0, 0.0])  
+x_hat = np.array([radius, 0.0, 5.0, np.pi/2, 0.0, 0.0, 40.0])  
 error_states = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])  #[dx  dy dv dtheta dba dbw dbclck]
 Perror = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1e-4])
 
@@ -50,7 +50,7 @@ R = np.diag([1.0, 1.0, 1.0, 1.0])
 
 # --- Real-Time Loop ---
 plt.ion()
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10), gridspec_kw={'height_ratios': [2, 1]})
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 10), gridspec_kw={'height_ratios': [2, 1, 1]})
 fig.tight_layout(pad=4.0)
 
 # Plot handles
@@ -59,19 +59,35 @@ ax1.set_xlim(-radius * 1.5, radius * 1.5); ax1.set_ylim(-radius * 1.5, radius * 
 ax1.set_title("Drone Navigation")
 ax1.grid(True)
 drone_dot, = ax1.plot([], [], 'go', label='Truth')
+sat1_dot, = ax1.plot([], [], 'ro', label='Sat1')
+sat2_dot, = ax1.plot([], [], 'co', label='Sat2')
+sat3_dot, = ax1.plot([], [], 'mo', label='Sat3')
+sat4_dot, = ax1.plot([], [], 'yo', label='Sat4')
 eskf_path, = ax1.plot([], [], 'b--', label='ESKF')
 ax1.legend()
 
 history_eskf_x, history_eskf_y = [], []
-res4_history, res_t = [], []
+history_ecb, history_cb = [], []
+history_res1, history_res2, history_res3, history_res4, res_t = [],[],[], [], []
 
 # Bottom Plot: Residuals (z - Hx)
 ax2.set_xlim(0, 60 * totalTime) # Number of simulation steps
 ax2.set_ylim(-radius * 0.5, radius * 0.5)   # Error in meters
 ax2.set_title("GPS Residuals (Innovation)")
 ax2.set_ylabel("Error (m)")
-res4_line, = ax2.plot([], [], 'b-', label='Sat4-Residual', alpha=0.6)
+res1_line, = ax2.plot([], [], 'r-', label='Sat1-Residual', alpha=0.6)
+res2_line, = ax2.plot([], [], 'c-', label='Sat2-Residual', alpha=0.6)
+res3_line, = ax2.plot([], [], 'm-', label='Sat3-Residual', alpha=0.6)
+res4_line, = ax2.plot([], [], 'y-', label='Sat4-Residual', alpha=0.6)
 ax2.legend()
+
+ax3.set_xlim(0, 60 * totalTime) # Number of simulation steps
+ax3.set_ylim( 40, 50)   # Error in meters
+ax3.set_title("Clock Bias")
+ax3.set_ylabel("Error (m)")
+ecb_line, = ax3.plot([], [], 'b-', label='Estimated Clock Bias', alpha=0.6)
+cb_line, = ax3.plot([], [], 'r-', label='Clock Bias', alpha=0.6)
+ax3.legend()
 
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
@@ -125,8 +141,23 @@ for i in range(int(60 * totalTime / dt)):
             H[j][6] = 1
 
             pr_hat = r_nom + x_hat[6]
+            ux*=30
+            uy*=30
             residual[j] = rawPRs[j] - pr_hat
-        
+            if j==0:    
+                sat1_dot.set_data([ux], [uy])
+                history_res1.append(residual[j])
+            elif j==1:    
+                sat2_dot.set_data([ux], [uy])
+                history_res2.append(residual[j])
+            elif j==2:    
+                sat3_dot.set_data([ux], [uy])
+                history_res3.append(residual[j])
+            else:    
+                sat4_dot.set_data([ux], [uy])
+                history_res4.append(residual[j])
+
+       
         K = Perror @ H.T @ np.linalg.inv (H @ Perror @ H.T + R)
         error_states = K @ residual.T
         Perror = (np.eye(7) -  K @ H) @ Perror
@@ -139,6 +170,9 @@ for i in range(int(60 * totalTime / dt)):
         x_hat[ 4] = error_states[4]
         x_hat[ 5] = error_states[5]  
         x_hat[ 6] += error_states[6]
+
+        history_ecb.append(x_hat[6])
+        history_cb.append(true_clock_bias)
         
         """ #serial incorporation of measurements
         for j in range(len(satPosArray)):
@@ -182,8 +216,13 @@ for i in range(int(60 * totalTime / dt)):
 
     drone_dot.set_data([curr_x], [curr_y])
     eskf_path.set_data(history_eskf_x, history_eskf_y)
-    #if res_t:
-    #    res4_line.set_data(res_t, res4_history)
+    if res_t:
+        res1_line.set_data(res_t, history_res1)
+        res2_line.set_data(res_t, history_res2)
+        res3_line.set_data(res_t, history_res3)
+        res4_line.set_data(res_t, history_res4)
+        ecb_line.set_data(res_t, history_ecb)
+        cb_line.set_data(res_t, history_cb)
 
     plt.pause(0.0001)
 plt.ioff(); plt.show()

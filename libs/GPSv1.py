@@ -11,11 +11,12 @@ class satConstellation:
         self.sat_angles = [np.radians(30), np.radians(75), np.radians(120), np.radians(160)]
         self.dt = dt
 
-    def get_satellite_positions():
+    def get_satellite_positions(self):
         sat_positions = []
-        for i in range(len(sat_angles)):
+        for i in range(len(self.sat_angles)):
             # To simulate realistic movement, we can let the satellites drift slowly over time
-            self.sat_angles[i] += 0.0001 
+            #self.sat_angles[i] += 0.0001 
+            self.sat_angles[i] += 0.1 
             
             sat_x = GPS_ORBIT_RADIUS * np.cos(self.sat_angles[i])
             sat_y = GPS_ORBIT_RADIUS * np.sin(self.sat_angles[i])
@@ -34,9 +35,9 @@ class GPSR:
         self.timeFactor = np.sqrt(dt)
         self.numSats = 4
         # Generate a static Ephemeris Error for each satellite (e.g., ~2 meters of error)
-        ephemeris_errors = np.random.normal(0, 2.0, (self.numSats, 2)) # [dx, dy] for each sat
+        self.ephemeris_errors = np.random.normal(0, 2.0, (self.numSats, 2)) # [dx, dy] for each sat
 
-    def get_satellite_positions(x_true, y_true):
+    def get_satellite_positions(self, x_true, y_true):
         sat_positions = self.constellation.get_satellite_positions()
         self.true_clock_bias += np.random.normal(0, self.true_clock_walk_drift) * self.timeFactor
         raw_prs = np.zeros(self.numSats)
@@ -48,8 +49,8 @@ class GPSR:
             
             # The hardware measurement is corrupted by the TRUE clock bias and antenna white noise!
             antenna_noise = np.random.normal(0, 0.5)
-            raw_prs[i] = r_true + true_clock_bias + antenna_noise
-            estimate_sat_pos[i][0] = sat_positions[i][0] - ephemeris_errors[i][0]
-            estimate_sat_pos[i][1] = sat_positions[i][1] - ephemeris_errors[i][1]
+            raw_prs[i] = r_true + self.true_clock_bias + antenna_noise
+            estimated_sat_pos[i][0] = sat_positions[i][0] - self.ephemeris_errors[i][0]
+            estimated_sat_pos[i][1] = sat_positions[i][1] - self.ephemeris_errors[i][1]
         
-        return raw_prs, estimated_sat_pos, true_clock_bias
+        return raw_prs, estimated_sat_pos, self.true_clock_bias
