@@ -1,6 +1,8 @@
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import time
+
 from IMUv1 import IMUSimulator
 from GPSv1 import GPSR
 
@@ -34,8 +36,6 @@ var_bw_walk = (sigma_gyro_walk ** 2) * dt
 
 sigma_clk_walk = 0.1
 
-#H = np.array([0,0,0,0,0,0,0], dtype=np.float64)
-
 # Noise Covariances
 Q = np.diag([
     0.0, 0.0, 
@@ -45,7 +45,7 @@ Q = np.diag([
     (sigma_gyro_walk**2)  * dt,
     (sigma_clk_walk**2) * dt
 ])
-#R = 1  # Measurement noise
+Rserial = 1  # Measurement noise
 R = np.diag([1.0, 1.0, 1.0, 1.0])
 
 # --- Real-Time Loop ---
@@ -128,52 +128,98 @@ for i in range(int(60 * totalTime / dt)):
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
         residual = np.zeros(4)
         H = np.zeros((4, 7))
-    
-        #batch incorporation of measurements
-        for j in range(len(estimated_sat_pos)):
-            dx = x_hat[0] - estimated_sat_pos[j][0]
-            dy = x_hat[1] - estimated_sat_pos[j][1]
-            r_nom = np.sqrt(dx**2 + dy**2)
-            ux = dx / r_nom
-            uy = dy / r_nom
-            H[j][0] = ux
-            H[j][1] = uy
-            H[j][6] = 1
+        Hserial = np.zeros(7)
+        if t < 5: #for the first five seconds, use batch incorporation for stability
+            #batch incorporation of measurements
+            start = time.perf_counter()
+            for j in range(len(estimated_sat_pos)):
+                dx = x_hat[0] - estimated_sat_pos[j][0]
+                dy = x_hat[1] - estimated_sat_pos[j][1]
+                r_nom = np.sqrt(dx**2 + dy**2)
+                ux = dx / r_nom
+                uy = dy / r_nom
+                H[j][0] = ux
+                H[j][1] = uy
+                H[j][6] = 1
 
-            pr_hat = r_nom + x_hat[6]
-            ux*=30
-            uy*=30
-            residual[j] = rawPRs[j] - pr_hat
-            if j==0:    
-                sat1_dot.set_data([ux], [uy])
-                history_res1.append(residual[j])
-            elif j==1:    
-                sat2_dot.set_data([ux], [uy])
-                history_res2.append(residual[j])
-            elif j==2:    
-                sat3_dot.set_data([ux], [uy])
-                history_res3.append(residual[j])
-            else:    
-                sat4_dot.set_data([ux], [uy])
-                history_res4.append(residual[j])
+                pr_hat = r_nom + x_hat[6]
+                ux*=30
+                uy*=30
+                residual[j] = rawPRs[j] - pr_hat
+                if j==0:    
+                    sat1_dot.set_data([ux], [uy])
+                    history_res1.append(residual[j])
+                elif j==1:    
+                    sat2_dot.set_data([ux], [uy])
+                    history_res2.append(residual[j])
+                elif j==2:    
+                    sat3_dot.set_data([ux], [uy])
+                    history_res3.append(residual[j])
+                else:    
+                    sat4_dot.set_data([ux], [uy])
+                    history_res4.append(residual[j])
 
-       
-        K = Perror @ H.T @ np.linalg.inv (H @ Perror @ H.T + R)
-        error_states = K @ residual.T
-        Perror = (np.eye(7) -  K @ H) @ Perror
-        # --- INJECTION STEP ---
-        # Apply error estimations directly to nominal totals
-        x_hat[0] += error_states[0]  # Fix X
-        x_hat[ 1] += error_states[1]  # Fix Y
-        x_hat[ 2] += error_states[2]  # Fix Velocity
-        x_hat[ 3] += error_states[3]  # Fix Heading
-        x_hat[ 4] = error_states[4]
-        x_hat[ 5] = error_states[5]  
-        x_hat[ 6] += error_states[6]
+           
+            K = Perror @ H.T @ np.linalg.inv (H @ Perror @ H.T + R)
+            error_states = K @ residual.T
+            Perror = (np.eye(7) -  K @ H) @ Perror
+            # --- INJECTION STEP ---
+            # Apply error estimations directly to nominal totals
+            x_hat[0] += error_states[0]  # Fix X
+            x_hat[ 1] += error_states[1]  # Fix Y
+            x_hat[ 2] += error_states[2]  # Fix Velocity
+            x_hat[ 3] += error_states[3]  # Fix Heading
+            x_hat[ 4] = error_states[4]
+            x_hat[ 5] = error_states[5]  
+            x_hat[ 6] += error_states[6]
 
-        history_ecb.append(x_hat[6])
-        history_cb.append(true_clock_bias)
+            print("batch processing time: %.6f seconds" % float(time.perf_counter() - start))
+
+            history_ecb.append(x_hat[6])
+            history_cb.append(true_clock_bias)
         
+        else: #switch to serial incorporation
+            #serial incorporation of measurements
+            start = time.perf_counter()
+            for j in range(len(estimated_sat_pos)):
+                dx = x_hat[0] - estimated_sat_pos[j][0]
+                dy = x_hat[1] - estimated_sat_pos[j][1]
+                r_nom = np.sqrt(dx**2 + dy**2)
+                ux = dx / r_nom
+                uy = dy / r_nom
+                Hserial[0] = ux
+                Hserial[1] = uy
+                Hserial[6] = 1
+
+                pr_hat = r_nom + x_hat[6]
+                residual = np.sqrt((curr_x - estimated_sat_pos[j][0])**2 + (curr_y - estimated_sat_pos[j][1])**2) - pr_hat
+                Kserial = Perror @ Hserial.T / (Hserial @ Perror @ Hserial.T + Rserial)
+                error_states = Kserial * residual
+                Perror = (np.eye(7) -  Kserial @ Hserial) @ Perror
+                # --- INJECTION STEP ---
+                # Apply error estimations directly to nominal totals
+                x_hat[0] += error_states[0]  # Fix X
+                x_hat[ 1] += error_states[1]  # Fix Y
+                x_hat[ 2] += error_states[2]  # Fix Velocity
+                x_hat[ 3] += error_states[3]  # Fix Heading
+                x_hat[ 4] = error_states[4]
+                x_hat[ 5] = error_states[5]  
+                x_hat[ 6] += error_states[6]
+               
+                if j==0:    
+                    sat1_dot.set_data([ux], [uy])
+                    history_res1.append(residual)
+                elif j==1:    
+                    sat2_dot.set_data([ux], [uy])
+                    history_res2.append(residual)
+                elif j==2:    
+                    sat3_dot.set_data([ux], [uy])
+                    history_res3.append(residual)
+                else:    
+                    sat4_dot.set_data([ux], [uy])
+                    history_res4.append(residual)
+            print("serial processing time: %.6f seconds" % float(time.perf_counter() - start) )
+
         # Store residuals for plotting
         res_t.append(t)
 
