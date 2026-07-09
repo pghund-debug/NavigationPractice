@@ -8,13 +8,13 @@ radius = 20
 omega = 0.5
 
 # --- EKF Initialization ---
-x_hat = np.array([radius, 0.0, 5.0, np.pi/2, 0.0, 0.0, 45.0])  
+x_hat = np.array([radius, 0.0, radius * omega, np.pi/2, 0.0, 0.0, 45.0])  
 error_states = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])  #[dx  dy dv dtheta dba dbw dbclck]
-Perror = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1e-4])
+Perror = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1000.0**2])
 
-x_hat2 = np.array([radius, 0.0, 5.0, np.pi/2, 0.0, 0.0, 45.0])  
+x_hat2 = np.array([radius, 0.0, radius * omega, np.pi/2, 0.0, 0.0, 45.0])  
 error_states2 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])  #[dx  dy dv dtheta dba dbw dbclck]
-Perror2 = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1e-4])
+Perror2 = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1000.0**2])
 
 dt = 0.01
 totalTime = 1 #minutes
@@ -49,8 +49,8 @@ Q = np.diag([
     (sigma_gyro_walk**2)  * dt,
     (sigma_clk_walk**2) * dt
 ])
-R = np.eye(len(sat_angles1), dtype = float)
-R2 = np.eye(len(sat_angles2), dtype = float)
+R = np.eye(len(sat_angles1), dtype = float) * 2.0**2
+R2 = np.eye(len(sat_angles2), dtype = float) * 2.0**2
 # --- Real-Time Loop ---
 plt.ion()
 fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 10), gridspec_kw={'height_ratios': [2, 1, 1]})
@@ -245,18 +245,20 @@ for i in range(int(60 * totalTime / dt)):
         x_hat[ 1] += error_states[1]  # Fix Y
         x_hat[ 2] += error_states[2]  # Fix Velocity
         x_hat[ 3] += error_states[3]  # Fix Heading
-        x_hat[ 4] = error_states[4]
-        x_hat[ 5] = error_states[5]  
+        x_hat[ 4] += error_states[4]
+        x_hat[ 5] += error_states[5]  
+        x_hat[ 6] += error_states[6]
         
         x_hat2[0] += error_states2[0]  # Fix X
         x_hat2[ 1] += error_states2[1]  # Fix Y
         x_hat2[ 2] += error_states2[2]  # Fix Velocity
         x_hat2[ 3] += error_states2[3]  # Fix Heading
-        x_hat2[ 4] = error_states2[4]
-        x_hat2[ 5] = error_states2[5]  
-        x_hat2[ 6] += error_states2[6]
+        x_hat2[ 4] += error_states2[4]
+        x_hat2[ 5] += error_states2[5]  
         x_hat2[ 6] += error_states2[6]
         
+        Perror = 0.5 * (Perror + Perror.T)
+        Perror2 = 0.5 * (Perror2 + Perror2.T)
 
     # 4. Visualization
     history_eskf_x.append(x_hat[0])

@@ -11,9 +11,9 @@ omega = 0.5
 plotBiases = False
 
 # --- EKF Initialization ---
-x_hat = np.array([radius, 0.0, 5.0, np.pi/2, 0.0, 0.0, 40.0])  
+x_hat = np.array([radius, 0.0, radius * omega, np.pi/2, 0.0, 0.0, 40.0])  
 error_states = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])  #[dx  dy dv dtheta dba dbw dbclck]
-Perror = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1e-4])
+Perror = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1000.0**2])
 
 dt = 0.01
 totalTime = 1 #minutes
@@ -45,8 +45,8 @@ Q = np.diag([
     (sigma_gyro_walk**2)  * dt,
     (sigma_clk_walk**2) * dt
 ])
-Rserial = 1  # Measurement noise
-R = np.diag([1.0, 1.0, 1.0, 1.0])
+Rserial = 2.0**2  # Measurement noise
+R = np.diag([4.0, 4.0, 4.0, 4.0])
 
 # --- Real-Time Loop ---
 plt.ion()
@@ -169,8 +169,8 @@ for i in range(int(60 * totalTime / dt)):
             x_hat[ 1] += error_states[1]  # Fix Y
             x_hat[ 2] += error_states[2]  # Fix Velocity
             x_hat[ 3] += error_states[3]  # Fix Heading
-            x_hat[ 4] = error_states[4]
-            x_hat[ 5] = error_states[5]  
+            x_hat[ 4] += error_states[4]
+            x_hat[ 5] += error_states[5]  
             x_hat[ 6] += error_states[6]
 
             print("batch processing time: %.6f seconds" % float(time.perf_counter() - start))
@@ -202,8 +202,8 @@ for i in range(int(60 * totalTime / dt)):
                 x_hat[ 1] += error_states[1]  # Fix Y
                 x_hat[ 2] += error_states[2]  # Fix Velocity
                 x_hat[ 3] += error_states[3]  # Fix Heading
-                x_hat[ 4] = error_states[4]
-                x_hat[ 5] = error_states[5]  
+                x_hat[ 4] += error_states[4]
+                x_hat[ 5] += error_states[5]  
                 x_hat[ 6] += error_states[6]
                
                 if j==0:    
@@ -222,6 +222,7 @@ for i in range(int(60 * totalTime / dt)):
 
         # Store residuals for plotting
         res_t.append(t)
+        Perror = 0.5 * (Perror + Perror.T)
 
     # 4. Visualization
     history_eskf_x.append(x_hat[0])

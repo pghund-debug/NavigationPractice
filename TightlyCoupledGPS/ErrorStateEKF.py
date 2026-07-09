@@ -9,14 +9,14 @@ omega = 0.5
 plotBiases = False
 
 # --- EKF Initialization ---
-x_hat = np.array([radius, 0.0, 5.0, np.pi/2, 0.0, 0.0, 40.0])  
+x_hat = np.array([radius, 0.0, radius * omega, np.pi/2, 0.0, 0.0, 45.0])  
 error_states = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])  #[dx  dy dv dtheta dba dbw dbclck]
-Perror = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1e-4])
+Perror = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1000.0**2])
 
 dt = 0.01
-totalTime = 1 #minutes
+totalTime = 3 #minutes
 IMU = IMUSimulator(dt)
-GPS = GPSR(dt * 100, [30,  75, 120, 160 ])
+GPS = GPSR(dt * 100, [30,  75, 120, 150 ]) #angles in degrees
 
 sigma_accel_white = 0.04
 sigma_gyro_white = 0.006
@@ -34,8 +34,6 @@ var_bw_walk = (sigma_gyro_walk ** 2) * dt
 
 sigma_clk_walk = 0.1
 
-#H = np.array([0,0,0,0,0,0,0], dtype=np.float64)
-
 # Noise Covariances
 Q = np.diag([
     0.0, 0.0, 
@@ -45,8 +43,7 @@ Q = np.diag([
     (sigma_gyro_walk**2)  * dt,
     (sigma_clk_walk**2) * dt
 ])
-#R = 1  # Measurement noise
-R = np.diag([1.0, 1.0, 1.0, 1.0])
+R = np.diag([4.0, 4.0, 4.0, 4.0])
 
 # --- Real-Time Loop ---
 plt.ion()
@@ -112,10 +109,10 @@ for i in range(int(60 * totalTime / dt)):
     # 2. LINEARIZE
     # This is the derivative of the physics above
     F = np.eye(7)
-    F[0, 2] = np.cos(theta) * dt
-    F[0, 3] = -v * np.sin(theta) * dt
-    F[1, 2] = np.sin(theta) * dt
-    F[1, 3] = v * np.cos(theta) * dt
+    F[0, 2] = np.cos(thetamid) * dt
+    F[0, 3] = -v * np.sin(thetamid) * dt
+    F[1, 2] = np.sin(thetamid) * dt
+    F[1, 3] = v * np.cos(thetamid) * dt
     F[2, 4] = -dt
     F[3, 5] = -dt
 
@@ -124,7 +121,6 @@ for i in range(int(60 * totalTime / dt)):
 
     # 3. KF UPDATE (Every 100 frames when GPS "arrives")
     if i % int(1/dt) == 0:
-        print("GPS update") 
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
         residual = np.zeros(4)
         H = np.zeros((4, 7))
@@ -161,14 +157,15 @@ for i in range(int(60 * totalTime / dt)):
         K = Perror @ H.T @ np.linalg.inv (H @ Perror @ H.T + R)
         error_states = K @ residual.T
         Perror = (np.eye(7) -  K @ H) @ Perror
+        Perror = 0.5 * (Perror + Perror.T)
         # --- INJECTION STEP ---
         # Apply error estimations directly to nominal totals
         x_hat[0] += error_states[0]  # Fix X
         x_hat[ 1] += error_states[1]  # Fix Y
         x_hat[ 2] += error_states[2]  # Fix Velocity
         x_hat[ 3] += error_states[3]  # Fix Heading
-        x_hat[ 4] = error_states[4]
-        x_hat[ 5] = error_states[5]  
+        x_hat[ 4] += error_states[4]
+        x_hat[ 5] += error_states[5]  
         x_hat[ 6] += error_states[6]
 
         history_ecb.append(x_hat[6])
@@ -191,5 +188,5 @@ for i in range(int(60 * totalTime / dt)):
         ecb_line.set_data(res_t, history_ecb)
         cb_line.set_data(res_t, history_cb)
 
-    plt.pause(0.0001)
+    #plt.pause(0.0001)
 plt.ioff(); plt.show()
