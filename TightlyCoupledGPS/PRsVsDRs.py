@@ -166,8 +166,6 @@ for i in range(int(60 * totalTime / dt)):
         drH = np.zeros((len(sat_angles), 8))
         sat_x = []
         sat_y = []
-        sat_x2 = []
-        sat_y2 = []
     
         #batch incorporation of measurements
         for j in range(len(estimated_sat_pos)):
