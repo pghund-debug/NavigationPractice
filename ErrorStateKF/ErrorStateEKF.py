@@ -24,6 +24,8 @@ IMU = IMUSimulator(dt)
 H = np.array([[1, 0, 0, 0, 0, 0],
               [0, 1, 0, 0, 0, 0]])
 
+I6 = np.eye(6)
+
 sigma_accel_white = 0.04
 sigma_gyro_white = 0.006
 
@@ -165,12 +167,12 @@ for i in range(int(60 * totalTime / dt)):
         S = H @ P @ H.T + R
         K = P @ H.T @ np.linalg.inv(S)
         xe_hat = xe_hat + K @ (z - H @ xe_hat)
-        P = (np.eye(6) - K @ H) @ P
+        P = (I6 - K @ H) @ P
         
         Serror = H @ Perror @ H.T + R
         Kerror = Perror @ H.T @ np.linalg.inv(Serror)
         error_states = Kerror @ residuales
-        Perror = (np.eye(6) - Kerror @ H) @ Perror
+        Perror = (I6 - Kerror @ H) @ Perror
         # --- INJECTION STEP ---
         # Apply error estimations directly to nominal totals
         xes_hat[0] += error_states[0,0]  # Fix X
