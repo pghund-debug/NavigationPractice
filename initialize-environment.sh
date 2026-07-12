@@ -18,7 +18,7 @@ else
 	pip install pyserial
 fi
 
-export PYTHONPATH=$(pwd)/libs:$PYTHONPATH
+export PYTHONPATH="$(pwd)/libs${PYTHONPATH:+:}${PYTHONPATH:-}"
 
 
 
