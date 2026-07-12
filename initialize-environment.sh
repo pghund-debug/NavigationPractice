@@ -2,7 +2,7 @@
 
 if [ -f KalmanFilter/bin/activate ]; then
 	echo "Python environment already setup. Sourcing..."
-	deactivate
+	if command -v deactivate &> /dev/null; then deactivate; fi
 	source KalmanFilter/bin/activate
 else
 	echo "No python environment found. Creating..."
