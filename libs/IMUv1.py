@@ -14,7 +14,7 @@ class IMUSimulator:
         self.accel_white_noise_sigma = 0.05  # m/s^2 / sqrt(Hz)
         self.accel_bias_walk_sigma   = 0.008 # m/s^3 / sqrt(Hz)
         self.accel_bias = 0.1                # Initial acceleration bias (m/s^2)
-
+        
     def generate_measurements(self, true_a_body, true_omega):
         """
         Takes ideal truth values and corrupts them with noise and drifting bias.
