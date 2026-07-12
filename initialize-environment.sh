@@ -2,7 +2,7 @@
 
 if [ -f KalmanFilter/bin/activate ]; then
 	echo "Python environment already setup. Sourcing..."
-	deactivate
+	if command -v deactivate &> /dev/null; then deactivate; fi
 	source KalmanFilter/bin/activate
 else
 	echo "No python environment found. Creating..."
@@ -18,7 +18,7 @@ else
 	pip install pyserial
 fi
 
-export PYTHONPATH=$(pwd)/libs:$PYTHONPATH
+export PYTHONPATH="$(pwd)/libs${PYTHONPATH:+:}${PYTHONPATH:-}"
 
 
 
