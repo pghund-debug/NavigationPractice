@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.linalg import expm
 from scipy.linalg import norm
 
 radius = 20
