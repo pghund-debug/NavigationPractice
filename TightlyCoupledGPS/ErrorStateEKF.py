@@ -94,8 +94,8 @@ for i in range(int(60 * totalTime / dt)):
     curr_y = radius * np.sin(omega * t)
     
     a, omegahat, trueGyroBias, trueAccelBias = IMU.generate_measurements(true_a_body = 0, true_omega = omega)
-    a_corr = a - error_states[4] # raw_accel - b_a
-    w_corr = omegahat - error_states[5] # raw_gyro - b_w
+    a_corr = a - x_hat[4] # raw_accel - b_a
+    w_corr = omegahat - x_hat[5] # raw_gyro - b_w
 
     # 2. EKF PREDICT: Move the state forward using trig
     x, y, v, theta, ba, bw, bclk = x_hat

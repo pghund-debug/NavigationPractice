@@ -95,11 +95,18 @@ for i in range(int(60 * totalTime / dt)):
     # 1. Truth
     curr_x = radius * np.cos(omega * t)
     curr_y = radius * np.sin( omega * t)
+    curr_theta = np.pi / 2 + t * omega
+    curr_vx = -omega * radius * np.sin(omega * t)
+    curr_vy = omega * radius * np.cos( omega * t)
+    curr_ax = -omega**2 * radius * np.cos(omega * t)
+    curr_ay = -omega**2 * radius * np.sin( omega * t)
+    body_ax = (curr_ax * np.cos(curr_theta)) + (curr_ay * np.sin(curr_theta))
+    body_ay = -(curr_ax * np.sin(curr_theta)) + (curr_ay * np.cos(curr_theta))
     
-    ax, ay, omegahat, trueGyroBias, trueAccelXBias, trueAccelYBias = IMU.generate_measurements(true_ax_body = 0, true_ay_body = -omega**2 * radius, true_omega = omega)
-    ax_corr = ax - error_states[5] # raw_accelx - b_ax
-    ay_corr = ay - error_states[6] # raw_accely - b_ay
-    w_corr = omegahat - error_states[7] # raw_gyro - b_w
+    ax, ay, omegahat, trueGyroBias, trueAccelXBias, trueAccelYBias = IMU.generate_measurements(true_ax_body = body_ax, true_ay_body = body_ay, true_omega = omega)
+    ax_corr = ax - x_hat[5] # raw_accelx - b_ax
+    ay_corr = ay - x_hat[6] # raw_accely - b_ay
+    w_corr = omegahat - x_hat[7] # raw_gyro - b_w
 
     # 2. EKF PREDICT: Move the state forward
     x, y, vx, vy, theta, bax, bay, bw, bclk, drift_clk = x_hat
@@ -140,7 +147,7 @@ for i in range(int(60 * totalTime / dt)):
     # 3. KF UPDATE (Every 100 frames when GPS "arrives")
     if i % int(1/dt) == 0 and i > 0:
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
-        rawDRs = GPS.get_satellite_DRs(curr_x, curr_y, -omega * radius * np.sin(omega * t), omega * radius * np.cos(omega * t) )
+        rawDRs = GPS.get_satellite_DRs(curr_x, curr_y, curr_vx, curr_vy )
         residualpr = np.zeros(len(sat_angles))
         residualdr = np.zeros(len(sat_angles))
         Hpr = np.zeros((len(sat_angles), 10))
@@ -295,7 +302,6 @@ for i in range(int(60 * totalTime / dt)):
                     
                     S_inv = 1.0 / (HprSerial @ P @ HprSerial.T + Rpr[0][0])
                     K = P @ HprSerial.T @ S_inv
-                    
                     error_states = K @ residualprSerial
                     P = (np.eye(10) -  K @ HprSerial) @ P
                     P = 0.5 * (P + P.T)
@@ -342,7 +348,6 @@ for i in range(int(60 * totalTime / dt)):
                     S_inv = 1.0 / (HdrSerial @ P @ HdrSerial.T + Rdr[0][0])
                     K = P @ HdrSerial.T @ S_inv
                     error_states = K @ residualdrSerial
-                    
                     P = (np.eye(10) -  K @ HdrSerial) @ P
                     P = 0.5 * (P + P.T)
 

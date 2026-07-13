@@ -100,10 +100,10 @@ for i in range(int(60 * totalTime / dt)):
     curr_y = radius * np.sin(omega * t)
     
     a, omegahat, trueGyroBias, trueAccelBias = IMU.generate_measurements(true_a_body = 0, true_omega = omega)
-    a_corr = a - error_states[4] # raw_accel - b_a
-    w_corr = omegahat - error_states[5] # raw_gyro - b_w
-    a_corr2 = a - error_states2[4] # raw_accel - b_a
-    w_corr2 = omegahat - error_states2[5] # raw_gyro - b_w
+    a_corr = a - x_hat[4] # raw_accel - b_a
+    w_corr = omegahat - x_hat[5] # raw_gyro - b_w
+    a_corr2 = a - x_hat2[4] # raw_accel - b_a
+    w_corr2 = omegahat - x_hat2[5] # raw_gyro - b_w
 
     # 2. EKF PREDICT: Move the state forward using trig
     x, y, v, theta, ba, bw, bclk = x_hat
@@ -148,7 +148,6 @@ for i in range(int(60 * totalTime / dt)):
 
     # 3. KF UPDATE (Every 100 frames when GPS "arrives")
     if i % int(1/dt) == 0 and i > 0:
-        print("GPS update") 
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
         rawPRs2, estimated_sat_pos2, true_clock_bias2 = GPS2.get_satellite_positions(curr_x, curr_y)
         residual = np.zeros(len(sat_angles1))
@@ -273,5 +272,5 @@ for i in range(int(60 * totalTime / dt)):
         eskf2_path.set_data(history_eskf2_x, history_eskf2_y)
         
 
-    plt.pause(0.0001)
+#    plt.pause(0.0001)
 plt.ioff(); plt.show()

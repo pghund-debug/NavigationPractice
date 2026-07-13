@@ -19,6 +19,15 @@ class IMUSimulator:
         self.accely_bias_walk_sigma   = 0.008 # m/s^3 / sqrt(Hz)
         self.accely_bias = 0.1                # Initial acceleration bias (m/s^2)
 
+        # Scale Factor Error (e.g., reads 2% too high on X, 1.5% too low on Y)
+        self.scale_factor_x = 0.02
+        self.scale_factor_y = -0.015
+        
+        # Misalignment / Cross-Coupling
+        # The angle (in radians) that the X and Y axes are bent toward each other
+        misalignment_angle = np.radians(1.0) # 1 degree of soldering tilt
+        self.cross_couple_xy = np.sin(misalignment_angle)
+
     def generate_measurements(self, true_ax_body, true_ay_body,  true_omega):
         """
         Takes ideal truth values and corrupts them with noise and drifting bias.
@@ -41,7 +50,7 @@ class IMUSimulator:
         
         # 3. Final Measured Signals
         measured_omega  = true_omega + self.gyro_bias + gyro_noise
-        measured_ax_body = true_ax_body + self.accelx_bias + accelx_noise
-        measured_ay_body = true_ay_body + self.accely_bias + accely_noise
+        measured_ax_body = true_ax_body + (true_ax_body * self.scale_factor_x) + (true_ay_body * self.cross_couple_xy) + self.accelx_bias + accelx_noise
+        measured_ay_body = true_ay_body + (true_ay_body * self.scale_factor_y) + (true_ax_body * self.cross_couple_xy) + self.accely_bias + accely_noise
         
         return measured_ax_body, measured_ay_body, measured_omega, self.gyro_bias, self.accelx_bias, self.accely_bias
