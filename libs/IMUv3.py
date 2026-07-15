@@ -53,4 +53,4 @@ class IMUSimulator:
         measured_ax_body = true_ax_body + (true_ax_body * self.scale_factor_x) + (true_ay_body * self.cross_couple_xy) + self.accelx_bias + accelx_noise
         measured_ay_body = true_ay_body + (true_ay_body * self.scale_factor_y) + (true_ax_body * self.cross_couple_xy) + self.accely_bias + accely_noise
         
-        return measured_ax_body, measured_ay_body, measured_omega, self.gyro_bias, self.accelx_bias, self.accely_bias
+        return measured_ax_body, measured_ay_body, measured_omega, self.gyro_bias, self.accelx_bias, self.accely_bias, self.scale_factor_x, self.scale_factor_y, self.cross_couple_xy
