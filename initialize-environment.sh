@@ -16,6 +16,7 @@ else
 	pip install pillow
 	pip install matplotlib
 	pip install pyserial
+	pip install allantools
 fi
 
 export PYTHONPATH=$(pwd)/libs:$PYTHONPATH

@@ -91,6 +91,11 @@ history_time2 = {}   # e.g., { 1: [0, 1, 2...], 3: [0, 1, 2...] }
 history_res2 = {}    # e.g., { 1: [0.5, 0.4...], 3: [-1.2, -1.5...] }
 line_objects2 = {}   # e.g., { 1: <matplotlib.lines.Line2D>, 3: <...> }
 
+I7 = np.eye(7)
+residual = np.zeros(len(sat_angles1))
+H = np.zeros((len(sat_angles1), 7))
+residual2 = np.zeros(len(sat_angles2))
+H2 = np.zeros((len(sat_angles2), 7))
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     t = i * dt
@@ -122,7 +127,7 @@ for i in range(int(60 * totalTime / dt)):
 
     # 2. LINEARIZE
     # This is the derivative of the physics above
-    F = np.eye(7)
+    F = I7.copy()
     F[0, 2] = np.cos(theta) * dt
     F[0, 3] = -v * np.sin(theta) * dt
     F[1, 2] = np.sin(theta) * dt
@@ -130,7 +135,7 @@ for i in range(int(60 * totalTime / dt)):
     F[2, 4] = -dt
     F[3, 5] = -dt
     
-    F2 = np.eye(7)
+    F2 = I7.copy()
     F2[0, 2] = np.cos(theta2) * dt
     F2[0, 3] = -v2 * np.sin(theta2) * dt
     F2[1, 2] = np.sin(theta2) * dt
@@ -150,10 +155,10 @@ for i in range(int(60 * totalTime / dt)):
         print("GPS update") 
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
         rawPRs2, estimated_sat_pos2, true_clock_bias2 = GPS2.get_satellite_positions(curr_x, curr_y)
-        residual = np.zeros(len(sat_angles1))
-        H = np.zeros((len(sat_angles1), 7))
-        residual2 = np.zeros(len(sat_angles2))
-        H2 = np.zeros((len(sat_angles2), 7))
+        residual.fill(0)
+        H.fill(0)
+        residual2.fill(0)
+        H2.fill(0)
         sat_x = []
         sat_y = []
         sat_x2 = []
@@ -233,11 +238,11 @@ for i in range(int(60 * totalTime / dt)):
         sat_plot2.set_data(sat_x2, sat_y2) 
         K = Perror @ H.T @ np.linalg.inv (H @ Perror @ H.T + R)
         error_states = K @ residual.T
-        Perror = (np.eye(7) -  K @ H) @ Perror
+        Perror = (I7 -  K @ H) @ Perror
         
         K2 = Perror2 @ H2.T @ np.linalg.inv (H2 @ Perror2 @ H2.T + R2)
         error_states2 = K2 @ residual2.T
-        Perror2 = (np.eye(7) -  K2 @ H2) @ Perror2
+        Perror2 = (I7 -  K2 @ H2) @ Perror2
         # --- INJECTION STEP ---
         # Apply error estimations directly to nominal totals
         x_hat[0] += error_states[0]  # Fix X

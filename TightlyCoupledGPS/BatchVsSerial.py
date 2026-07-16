@@ -88,6 +88,10 @@ ecb_line, = ax3.plot([], [], 'b-', label='Estimated Clock Bias', alpha=0.6)
 cb_line, = ax3.plot([], [], 'r-', label='Clock Bias', alpha=0.6)
 ax3.legend()
 
+I7 = np.eye(7)
+residual = np.zeros(4)
+H = np.zeros((4, 7))
+Hserial = np.zeros(7)
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     t = i * dt
@@ -110,7 +114,7 @@ for i in range(int(60 * totalTime / dt)):
 
     # 2. LINEARIZE
     # This is the derivative of the physics above
-    F = np.eye(7)
+    F = I7.copy()
     F[0, 2] = np.cos(theta) * dt
     F[0, 3] = -v * np.sin(theta) * dt
     F[1, 2] = np.sin(theta) * dt
@@ -125,9 +129,9 @@ for i in range(int(60 * totalTime / dt)):
     if i % int(1/dt) == 0:
         print("GPS update") 
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
-        residual = np.zeros(4)
-        H = np.zeros((4, 7))
-        Hserial = np.zeros(7)
+        residual.fill(0)
+        H.fill(0)
+        Hserial.fill(0)
         if t < 5: #for the first five seconds, use batch incorporation for stability
             #batch incorporation of measurements
             start = time.perf_counter()
@@ -161,7 +165,7 @@ for i in range(int(60 * totalTime / dt)):
            
             K = Perror @ H.T @ np.linalg.inv (H @ Perror @ H.T + R)
             error_states = K @ residual.T
-            Perror = (np.eye(7) -  K @ H) @ Perror
+            Perror = (I7 -  K @ H) @ Perror
             # --- INJECTION STEP ---
             # Apply error estimations directly to nominal totals
             x_hat[0] += error_states[0]  # Fix X
@@ -194,7 +198,7 @@ for i in range(int(60 * totalTime / dt)):
                 residual = np.sqrt((curr_x - estimated_sat_pos[j][0])**2 + (curr_y - estimated_sat_pos[j][1])**2) - pr_hat
                 Kserial = Perror @ Hserial.T / (Hserial @ Perror @ Hserial.T + Rserial)
                 error_states = Kserial * residual
-                Perror = (np.eye(7) -  Kserial @ Hserial) @ Perror
+                Perror = (I7 -  Kserial @ Hserial) @ Perror
                 # --- INJECTION STEP ---
                 # Apply error estimations directly to nominal totals
                 x_hat[0] += error_states[0]  # Fix X

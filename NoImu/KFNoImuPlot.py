@@ -60,6 +60,7 @@ res2_x_line, = ax2.plot([], [], 'k-', label='X2-Residual', alpha=0.6)
 #res2_y_line, = ax2.plot([], [], 'k-', label='Y2-Residual', alpha=0.6)
 ax2.legend()
 
+I4 = np.eye(4)
 for i in range(300):
     t = i * dt
     # 1. Truth
@@ -85,12 +86,12 @@ for i in range(300):
         S = H @ P @ H.T + R
         K = P @ H.T @ np.linalg.inv(S)
         x_hat = x_hat + K @ (z - H @ x_hat)
-        P = (np.eye(4) - K @ H) @ P
+        P = (I4 - K @ H) @ P
         
         S2 = H @ P2 @ H.T + R2
         K2 = P2 @ H.T @ np.linalg.inv(S2)
         x2_hat = x2_hat + K2 @ (z - H @ x2_hat)
-        P2 = (np.eye(4) - K2 @ H) @ P2
+        P2 = (I4 - K2 @ H) @ P2
        
         # Store residuals for plotting
         res_t.append(i)
