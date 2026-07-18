@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import matplotlib.pyplot as plt
 from IMUv1 import IMUSimulator
@@ -86,6 +85,9 @@ ecb_line, = ax3.plot([], [], 'b-', label='Estimated Clock Bias', alpha=0.6)
 cb_line, = ax3.plot([], [], 'r-', label='Clock Bias', alpha=0.6)
 ax3.legend()
 
+I7 = np.eye(7)
+residual = np.zeros(4)
+H = np.zeros((4, 7))
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     t = i * dt
@@ -108,7 +110,7 @@ for i in range(int(60 * totalTime / dt)):
 
     # 2. LINEARIZE
     # This is the derivative of the physics above
-    F = np.eye(7)
+    F = I7.copy()
     F[0, 2] = np.cos(thetamid) * dt
     F[0, 3] = -v * np.sin(thetamid) * dt
     F[1, 2] = np.sin(thetamid) * dt
@@ -122,8 +124,8 @@ for i in range(int(60 * totalTime / dt)):
     # 3. KF UPDATE (Every 100 frames when GPS "arrives")
     if i % int(1/dt) == 0:
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
-        residual = np.zeros(4)
-        H = np.zeros((4, 7))
+        residual.fill(0)
+        H.fill(0)
     
         #batch incorporation of measurements
         for j in range(len(estimated_sat_pos)):
@@ -156,7 +158,7 @@ for i in range(int(60 * totalTime / dt)):
        
         K = Perror @ H.T @ np.linalg.inv (H @ Perror @ H.T + R)
         error_states = K @ residual.T
-        Perror = (np.eye(7) -  K @ H) @ Perror
+        Perror = (I7 -  K @ H) @ Perror
         Perror = 0.5 * (Perror + Perror.T)
         # --- INJECTION STEP ---
         # Apply error estimations directly to nominal totals

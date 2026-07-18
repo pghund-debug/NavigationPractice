@@ -88,6 +88,7 @@ Phi2 = np.eye(6)
 Qaccum = np.eye(6)
 Qaccum2 = np.eye(6)
 now = datetime.now()
+I6 = np.eye(6)
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     t = i * dt
@@ -129,7 +130,7 @@ for i in range(int(60 * totalTime / dt)):
     
     # 2. LINEARIZE
     # This is the derivative of the physics above
-    F = np.eye(6)
+    F = I6.copy()
     F[0, 2] = cosES * dt
     F[0, 3] = -vES * sinES * dt
     F[1, 2] = sinES * dt
@@ -137,7 +138,7 @@ for i in range(int(60 * totalTime / dt)):
     F[2, 4] = -dt
     F[3, 5] = -dt
 
-    F2 = np.eye(6)
+    F2 = I6.copy()
     F2[0, 2] = cosES2 * dt
     F2[0, 3] = -vES2 * sinES2 * dt - 0.5 * a_corrES2[0] * sinES2 * dt**2
     F2[1, 2] = sinES2 * dt 
@@ -188,12 +189,12 @@ for i in range(int(60 * totalTime / dt)):
         Serror = H @ Perror @ H.T + R
         Kerror = Perror @ H.T @ np.linalg.inv(Serror)
         error_states = Kerror @ residuales
-        Perror = (np.eye(6) - Kerror @ H) @ Perror
+        Perror = (I6 - Kerror @ H) @ Perror
         
         Serror2 = H @ Perror2 @ H.T + R
         Kerror2 = Perror2 @ H.T @ np.linalg.inv(Serror2)
         error_states2 = Kerror2 @ residuales2
-        Perror2 = (np.eye(6) - Kerror2 @ H) @ Perror2
+        Perror2 = (I6 - Kerror2 @ H) @ Perror2
 
         # --- INJECTION STEP ---
         # Apply error estimations directly to nominal totals
@@ -216,10 +217,10 @@ for i in range(int(60 * totalTime / dt)):
         gps_dot.set_data([z[0,0]], [z[1,0]])
         
         #reset accumulators
-        Phi = np.eye(6)
-        Phi2 = np.eye(6)
-        Qaccum = np.eye(6)
-        Qaccum2 = np.eye(6)
+        Phi = I6.copy()
+        Phi2 = I6.copy()
+        Qaccum = I6.copy()
+        Qaccum2 = I6.copy()
         print(datetime.now() - now)
         now = datetime.now()
 

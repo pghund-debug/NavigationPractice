@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import matplotlib.pyplot as plt
 from IMUv1 import IMUSimulator
@@ -99,6 +98,14 @@ line_objects = {}   # e.g., { 1: <matplotlib.lines.Line2D>, 3: <...> }
 history_resdr = {}    # e.g., { 1: [0.5, 0.4...], 3: [-1.2, -1.5...] }
 line_objectsdr = {}   # e.g., { 1: <matplotlib.lines.Line2D>, 3: <...> }
 
+I7 = np.eye(7)
+I8 = np.eye(8)
+residual = np.zeros(len(sat_angles))
+H = np.zeros((len(sat_angles), 7))
+residualdr = np.zeros(len(sat_angles))
+dr_residual = np.zeros(len(sat_angles))
+Hdr = np.zeros((len(sat_angles), 8))
+drH = np.zeros((len(sat_angles), 8))
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     t = i * dt
@@ -131,7 +138,7 @@ for i in range(int(60 * totalTime / dt)):
 
     # 2. LINEARIZE
     # This is the derivative of the physics above
-    F = np.eye(7)
+    F = I7.copy()
     F[0, 2] = np.cos(theta) * dt
     F[0, 3] = -v * np.sin(theta) * dt
     F[1, 2] = np.sin(theta) * dt
@@ -139,7 +146,7 @@ for i in range(int(60 * totalTime / dt)):
     F[2, 4] = -dt
     F[3, 5] = -dt
     
-    Fdr = np.eye(8)
+    Fdr = I8.copy()
     Fdr[0, 2] = np.cos(thetadr) * dt
     Fdr[0, 3] = -vdr * np.sin(thetadr) * dt
     Fdr[1, 2] = np.sin(thetadr) * dt
@@ -158,12 +165,12 @@ for i in range(int(60 * totalTime / dt)):
     if i % int(1/dt) == 0 and i > 0:
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
         rawDRs = GPS.get_satellite_DRs(curr_x, curr_y, -omega * radius * np.sin(omega * t), omega * radius * np.cos(omega * t) )
-        residual = np.zeros(len(sat_angles))
-        H = np.zeros((len(sat_angles), 7))
-        residualdr = np.zeros(len(sat_angles))
-        dr_residual = np.zeros(len(sat_angles))
-        Hdr = np.zeros((len(sat_angles), 8))
-        drH = np.zeros((len(sat_angles), 8))
+        residual.fill(0)
+        H.fill(0)
+        residualdr.fill(0)
+        dr_residual.fill(0)
+        Hdr.fill(0)
+        drH.fill(0)
         sat_x = []
         sat_y = []
     
@@ -224,12 +231,12 @@ for i in range(int(60 * totalTime / dt)):
         sat_plot.set_data(sat_x, sat_y)
         K = P @ H.T @ np.linalg.inv (H @ P @ H.T + R)
         error_states = K @ residual.T
-        P = (np.eye(7) -  K @ H) @ P
+        P = (I7 -  K @ H) @ P
         P = 0.5 * (P + P.T)
         
         Kdr = Pdr @ Hdr.T @ np.linalg.inv (Hdr @ Pdr @ Hdr.T + R)
         error_statesdr = Kdr @ residualdr.T
-        Pdr = (np.eye(8) -  Kdr @ Hdr) @ Pdr
+        Pdr = (I8 -  Kdr @ Hdr) @ Pdr
         Pdr = 0.5 * (Pdr + Pdr.T)
 
         # --- INJECTION STEP ---
@@ -275,7 +282,7 @@ for i in range(int(60 * totalTime / dt)):
         
         Kdr = Pdr @ drH.T @ np.linalg.inv (drH @ Pdr @ drH.T + Rdr)
         error_statesdr = Kdr @ dr_residual.T
-        Pdr = (np.eye(8) -  Kdr @ drH) @ Pdr
+        Pdr = (I8 -  Kdr @ drH) @ Pdr
         Pdr = 0.5 * (Pdr + Pdr.T)
 
         x_hatdr[0] += error_statesdr[0]  # Fix X
