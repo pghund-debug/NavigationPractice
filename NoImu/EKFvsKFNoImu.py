@@ -64,6 +64,7 @@ rese_x_line, = ax2.plot([], [], 'k-', label='EKFX-Residual', alpha=0.6)
 #rese_y_line, = ax2.plot([], [], 'k-', label='EKFY-Residual', alpha=0.6)
 ax2.legend()
 
+I4 = np.eye(4)
 for i in range(300):
     # Extract current state for readability
     _, _, v, theta = xe_hat.flatten()
@@ -109,12 +110,12 @@ for i in range(300):
         print(K)
         print(K @ (z - H @ x_hat))
         x_hat = x_hat + K @ (z - H @ x_hat)
-        P = (np.eye(4) - K @ H) @ P
+        P = (I4 - K @ H) @ P
        
         SE = H @ PE @ H.T + RE
         KE = PE @ H.T @ np.linalg.inv(SE)
         xe_hat = xe_hat + KE @ (z - H @ xe_hat)
-        PE = (np.eye(4) - KE @ H) @ PE
+        PE = (I4 - KE @ H) @ PE
         
         # Store residuals for plotting
         res_t.append(i)

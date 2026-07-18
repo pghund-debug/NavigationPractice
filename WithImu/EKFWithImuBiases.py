@@ -94,6 +94,8 @@ else:
     #rese2_y_line, = ax2.plot([], [], 'b-', label='EKFBY-Residual', alpha=0.6)
     ax2.legend()
 
+I4 = np.eye(4)
+I6 = np.eye(6)
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     _, _, v, theta = xe_hat.flatten()
@@ -153,12 +155,12 @@ for i in range(int(60 * totalTime / dt)):
         SE = H @ PE @ H.T + RE
         KE = PE @ H.T @ np.linalg.inv(SE)
         xe_hat = xe_hat + KE @ (z - H @ xe_hat)
-        PE = (np.eye(4) - KE @ H) @ PE
+        PE = (I4 - KE @ H) @ PE
         
         SE2 = H2 @ PE2 @ H2.T + RE
         KE2 = PE2 @ H2.T @ np.linalg.inv(SE2)
         xe_hat2 = xe_hat2 + KE2 @ (z - H2 @ xe_hat2)
-        PE2 = (np.eye(6) - KE2 @ H2) @ PE2
+        PE2 = (I6 - KE2 @ H2) @ PE2
         
         # Store residuals for plotting
         rese_t.append(i * 0.05)

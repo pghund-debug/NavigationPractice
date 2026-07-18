@@ -176,6 +176,8 @@ resi_x_line, = ax2.plot([], [], 'c-', label='IEKFX-Residual', alpha=0.6)
 #resi_y_line, = ax2.plot([], [], 'c-', label='IEKFY-Residual', alpha=0.6)
 ax2.legend()
 
+I4 = np.eye(4)
+A = np.zeros((9, 9))
 for i in range(300):
     # Extract current state for readability
     _, _, v, theta = xe_hat.flatten()
@@ -204,7 +206,7 @@ for i in range(300):
     # Update Position (p = p + R*v*dt)
     X_hat[:3, 4] += R_old @ X_hat[:3, 3] * dt
     # The A matrix here is CONSTANT for many navigation models!
-    A = np.zeros((9, 9)) 
+    A.fill(0)
     # Fill A with the "physics" of the Lie Algebra
     PI = PI + (A @ PI + PI @ A.T + QI) * dt
 
@@ -235,13 +237,13 @@ for i in range(300):
         S = H @ P @ H.T + R
         K = P @ H.T @ np.linalg.inv(S)
         x_hat = x_hat + K @ (z - H @ x_hat)
-        P = (np.eye(4) - K @ H) @ P
+        P = (I4 - K @ H) @ P
         
         #EKF
         SE = H @ PE @ H.T + R
         KE = PE @ H.T @ np.linalg.inv(SE)
         xe_hat = xe_hat + KE @ (z - H @ xe_hat)
-        PE = (np.eye(4) - KE @ H) @ PE
+        PE = (I4 - KE @ H) @ PE
         
         #IEKF
         #returns the error vector 'delta' calculated by Kalman Gain K

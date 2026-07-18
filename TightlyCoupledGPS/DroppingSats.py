@@ -81,6 +81,13 @@ line_objectsdr = {}   # e.g., { 1: <matplotlib.lines.Line2D>, 3: <...> }
 line_objectspr = {}   # e.g., { 1: <matplotlib.lines.Line2D>, 3: <...> }
 history_resdr = {}    # e.g., { 1: [0.5, 0.4...], 3: [-1.2, -1.5...] }
 
+I8 = np.eye(8)
+residualpr = np.zeros(len(sat_angles))
+residualdr = np.zeros(len(sat_angles))
+Hpr = np.zeros((len(sat_angles), 8))
+Hdr = np.zeros((len(sat_angles), 8))
+HprSerial = np.zeros((1,8))
+HdrSerial = np.zeros((1,8))
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     t = i * dt
@@ -104,7 +111,7 @@ for i in range(int(60 * totalTime / dt)):
 
     # 2. LINEARIZE
     # This is the derivative of the physics above
-    F = np.eye(8)
+    F = I8.copy()
     F[0, 2] = np.cos(theta) * dt
     F[0, 3] = -v * np.sin(theta) * dt
     F[1, 2] = np.sin(theta) * dt
@@ -140,12 +147,12 @@ for i in range(int(60 * totalTime / dt)):
     if i % int(1/dt) == 0 and i > 0:
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
         rawDRs = GPS.get_satellite_DRs(curr_x, curr_y, -omega * radius * np.sin(omega * t), omega * radius * np.cos(omega * t) )
-        residualpr = np.zeros(len(sat_angles))
-        residualdr = np.zeros(len(sat_angles))
-        Hpr = np.zeros((len(sat_angles), 8))
-        Hdr = np.zeros((len(sat_angles), 8))
-        HprSerial = np.zeros((1,8))
-        HdrSerial = np.zeros((1,8))
+        residualpr.fill(0)
+        residualdr.fill(0)
+        Hpr.fill(0)
+        Hdr.fill(0)
+        HprSerial.fill(0)
+        HdrSerial.fill(0)
         sat_x = []
         sat_y = []
    
@@ -194,7 +201,7 @@ for i in range(int(60 * totalTime / dt)):
             sat_plot.set_data(sat_x, sat_y)
             K = P @ Hpr.T @ np.linalg.inv (Hpr @ P @ Hpr.T + Rpr)
             error_states = K @ residualpr.T
-            P = (np.eye(8) -  K @ Hpr) @ P
+            P = (I8 -  K @ Hpr) @ P
             P = 0.5 * (P + P.T)
 
             # --- INJECTION STEP ---
@@ -239,7 +246,7 @@ for i in range(int(60 * totalTime / dt)):
             
             K = P @ Hdr.T @ np.linalg.inv (Hdr @ P @ Hdr.T + Rdr)
             error_states = K @ residualdr.T
-            P = (np.eye(8) -  K @ Hdr) @ P
+            P = (I8 -  K @ Hdr) @ P
             P = 0.5 * (P + P.T)
 
             x_hat[0] += error_states[0]  # Fix X
@@ -294,7 +301,7 @@ for i in range(int(60 * totalTime / dt)):
                     K = P @ HprSerial.T @ S_inv
                     
                     error_states = K @ residualprSerial
-                    P = (np.eye(8) -  K @ HprSerial) @ P
+                    P = (I8 -  K @ HprSerial) @ P
                     P = 0.5 * (P + P.T)
 
                     # --- INJECTION STEP ---
@@ -340,7 +347,7 @@ for i in range(int(60 * totalTime / dt)):
                     K = P @ HdrSerial.T @ S_inv
                     error_states = K @ residualdrSerial
                     
-                    P = (np.eye(8) -  K @ HdrSerial) @ P
+                    P = (I8 -  K @ HdrSerial) @ P
                     P = 0.5 * (P + P.T)
 
                     x_hat[0] += error_states[0]  # Fix X

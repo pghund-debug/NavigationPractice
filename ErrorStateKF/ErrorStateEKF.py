@@ -101,6 +101,7 @@ else:
     #reses_y_line, = ax2.plot([], [], 'b-', label='ESKFY-Residual', alpha=0.6)
     ax2.legend()
 
+I6 = np.eye(6)
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     _, _, v, theta, _,_ = xe_hat.flatten()
@@ -141,7 +142,7 @@ for i in range(int(60 * totalTime / dt)):
         [0, 0, 0, 0, 0, 1]
     ])
 
-    F = np.eye(6)
+    F = I6.copy()
     F[0, 2] = np.cos(thetaES) * dt
     F[0, 3] = -vES * np.sin(thetaES) * dt
     F[1, 2] = np.sin(thetaES) * dt
