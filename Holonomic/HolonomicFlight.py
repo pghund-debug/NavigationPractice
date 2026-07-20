@@ -1,14 +1,16 @@
+import math
 import numpy as np
 import matplotlib.pyplot as plt
-from IMUv1 import IMUSimulator
+from IMUv2 import IMUSimulator
 from GPSv1 import GPSR
 
 radius = 20
 omega = 0.5
 
-x_hat = np.array([radius, 0.0, radius * omega, np.pi/2, 0.0, 0.0, 45.0, 0.14])  
-error_states = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])  #[dx  dy dv dtheta dba dbw dbclck]
-P = np.diag([10.0, 10.0, 1.0, 0.1, 1e-4, 1e-5, 1000.0**2, 100.0**2])
+#state: x, y, vx, vy, theta, b_ax, b_ay, b_w, b_clk, b_drift
+x_hat = np.array([radius, 0.0, -radius * omega * np.sin(0), radius * omega * np.cos(0), np.pi/2, 0.0, 0.0, 0.0, 45.0, 0.14])  
+error_states = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+P = np.diag([10.0, 10.0, 1.0, 1.0, 0.1, 1e-4, 1e-4, 1e-5, 1000.0**2, 100.0**2])
 
 dt = 0.01
 totalTime = 4 #minutes
@@ -16,27 +18,33 @@ IMU = IMUSimulator(dt)
 sat_angles = [30, 75, 120, 160, 220]
 GPS = GPSR(dt * 100, sat_angles) # second argument is satellite angles in degrees
 
-sigma_accel_white = 0.04
+sigma_accelx_white = 0.04
+sigma_accely_white = 0.04
 sigma_gyro_white = 0.006
 
-sigma_accel_walk = 0.001
+sigma_accelx_walk = 0.001
+sigma_accely_walk = 0.001
 sigma_gyro_walk = 0.0001
 
 # Standard White Noise Variances (from the tau=1 intercept)
-var_v     = (sigma_accel_white ** 2) * dt
+var_vx     = (sigma_accelx_white ** 2) * dt
+var_vy     = (sigma_accely_white ** 2) * dt
 var_theta = (sigma_gyro_white ** 2) * dt
 
 # Bias Drift Variances (from the sloped right side of the Allan plot)
-var_ba_walk = (sigma_accel_walk ** 2) * dt
+var_bax_walk = (sigma_accelx_walk ** 2) * dt
+var_bay_walk = (sigma_accely_walk ** 2) * dt
 var_bw_walk = (sigma_gyro_walk ** 2) * dt
 
 sigma_clk_walk = 0.1
 
 Q = np.diag([
     0.0, 0.0, 
-    (sigma_accel_white**2) * dt, 
+    (sigma_accelx_white**2) * dt, 
+    (sigma_accely_white**2) * dt, 
     (sigma_gyro_white**2) * dt,
-    (sigma_accel_walk**2)  * dt, 
+    (sigma_accelx_walk**2)  * dt, 
+    (sigma_accely_walk**2)  * dt, 
     (sigma_gyro_walk**2)  * dt,
     (sigma_clk_walk**2) * dt,
     (0.05**2) * dt
@@ -56,7 +64,7 @@ ax1.set_title("Drone Navigation")
 ax1.grid(True)
 drone_dot, = ax1.plot([], [], 'go', label='Truth')
 sat_plot, = ax1.plot([], [], 'ro', markersize=8, label="Visible Sats")
-eskf_path, = ax1.plot([], [], 'm--', label='ESKFDR')
+eskf_path, = ax1.plot([], [], 'm--', label='EKF')
 ax1.legend()
 
 history_eskf_x, history_eskf_y = [], []
@@ -81,78 +89,71 @@ line_objectsdr = {}   # e.g., { 1: <matplotlib.lines.Line2D>, 3: <...> }
 line_objectspr = {}   # e.g., { 1: <matplotlib.lines.Line2D>, 3: <...> }
 history_resdr = {}    # e.g., { 1: [0.5, 0.4...], 3: [-1.2, -1.5...] }
 
-I8 = np.eye(8)
-residualpr = np.zeros(len(sat_angles))
-residualdr = np.zeros(len(sat_angles))
-Hpr = np.zeros((len(sat_angles), 8))
-Hdr = np.zeros((len(sat_angles), 8))
-HprSerial = np.zeros((1,8))
-HdrSerial = np.zeros((1,8))
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     t = i * dt
     # 1. Truth
     curr_x = radius * np.cos(omega * t)
-    curr_y = radius * np.sin(omega * t)
+    curr_y = radius * np.sin( omega * t)
+    curr_theta = np.pi / 2 + t * omega
+    curr_vx = -omega * radius * np.sin(omega * t)
+    curr_vy = omega * radius * np.cos( omega * t)
+    curr_ax = -omega**2 * radius * np.cos(omega * t)
+    curr_ay = -omega**2 * radius * np.sin( omega * t)
+    body_ax = (curr_ax * np.cos(curr_theta)) + (curr_ay * np.sin(curr_theta))
+    body_ay = -(curr_ax * np.sin(curr_theta)) + (curr_ay * np.cos(curr_theta))
     
-    a, omegahat, trueGyroBias, trueAccelBias = IMU.generate_measurements(true_a_body = 0, true_omega = omega)
-    a_corr = a - x_hat[4] # raw_accel - b_a
-    w_corr = omegahat - x_hat[5] # raw_gyro - b_w
+    ax, ay, omegahat, trueGyroBias, trueAccelXBias, trueAccelYBias = IMU.generate_measurements(true_ax_body = body_ax, true_ay_body = body_ay, true_omega = omega)
+    ax_corr = ax - x_hat[5] # raw_accelx - b_ax
+    ay_corr = ay - x_hat[6] # raw_accely - b_ay
+    w_corr = omegahat - x_hat[7] # raw_gyro - b_w
 
-    # 2. EKF PREDICT: Move the state forward using trig
-    x, y, v, theta, ba, bw, bclk, clkw = x_hat
+    # 2. EKF PREDICT: Move the state forward
+    x, y, vx, vy, theta, bax, bay, bw, bclk, drift_clk = x_hat
     
-    x     += v * np.cos(theta) * dt
-    y     += v * np.sin(theta) * dt
-    v     += a_corr * dt
+    # 2. Rotate Body-Frame accelerations into the Global Earth-Frame
+    # This uses the standard 2D rotation matrix:
+    # [ cos(theta)  -sin(theta) ]
+    # [ sin(theta)   cos(theta) ]
+    a_global_x = (ax_corr * np.cos(theta)) - (ay_corr * np.sin(theta))
+    a_global_y = (ax_corr * np.sin(theta)) + (ay_corr * np.cos(theta))
+    vx     += a_global_x * dt
+    vy     += a_global_y * dt
     theta += w_corr * dt
-    bclk  += clkw * dt
-    x_hat = np.array([x, y, v, theta, ba, bw, bclk, clkw])
+    x     += vx * dt
+    y     += vy * dt
+    bclk  += drift_clk * dt
+    x_hat = np.array([x, y, vx, vy, theta, bax, bay, bw, bclk, drift_clk])
 
     # 2. LINEARIZE
     # This is the derivative of the physics above
-    F = I8.copy()
-    F[0, 2] = np.cos(theta) * dt
-    F[0, 3] = -v * np.sin(theta) * dt
-    F[1, 2] = np.sin(theta) * dt
-    F[1, 3] = v * np.cos(theta) * dt
-    F[2, 4] = -dt
-    F[3, 5] = -dt
-    F[6, 7] = dt
+    F = np.eye(10)
+    F[0, 2] = dt #dx/dvx
+    F[1, 3] = dt #dy/dvy
+    F[2, 4] = -a_global_y * dt # dvx/dtheta
+    F[3, 4] = a_global_x * dt #dvy/dtheta
+    F[2, 5] =  -np.cos(theta) * dt #dvx/db_ax
+    F[2, 6] =  np.sin(theta) * dt #dvx/db_ay
+    F[3, 5] =  -np.sin(theta) * dt #dvy/db_ax
+    F[3, 6] =  -np.cos(theta) * dt #dvy/db_ay
+    F[4, 7] = -dt #dtheta/db_w
+    F[8, 9] = dt # dbclk/ddrift_clk
 
     # Update Covariance using the Jacobian
     P = F @ P @ F.T + Q
 
-    if t < 150:
-        active_prns=[0,1,2,3,4] #includes 0 as a PRN
-    if t < 135:
-        active_prns=[0,1,2,3,4] #includes 0 as a PRN
-    if t < 120:
-        active_prns=[0] #includes 0 as a PRN
-    if t < 105:
-        active_prns=[0] #includes 0 as a PRN
-    if t < 90:
-        active_prns=[0] #includes 0 as a PRN
-    if t < 60:
-        active_prns=[0] #includes 0 as a PRN
-    if t < 30:
-        active_prns=[0] #includes 0 as a PRN
-    if t < 15:
-        active_prns=[0,1,2,3,4] #includes 0 as a PRN
-    if t < 10:
-        active_prns=[0,1,2,3,4] #includes 0 as a PRN
-    
+    active_prns=[0,1,2,3,4] #includes 0 as a PRN
 
     # 3. KF UPDATE (Every 100 frames when GPS "arrives")
     if i % int(1/dt) == 0 and i > 0:
         rawPRs, estimated_sat_pos, true_clock_bias = GPS.get_satellite_positions(curr_x, curr_y)
-        rawDRs = GPS.get_satellite_DRs(curr_x, curr_y, -omega * radius * np.sin(omega * t), omega * radius * np.cos(omega * t) )
-        residualpr.fill(0)
-        residualdr.fill(0)
-        Hpr.fill(0)
-        Hdr.fill(0)
-        HprSerial.fill(0)
-        HdrSerial.fill(0)
+        rawDRs = GPS.get_satellite_DRs(curr_x, curr_y, curr_vx, curr_vy )
+        residualpr = np.zeros(len(sat_angles))
+        residualdr = np.zeros(len(sat_angles))
+        Hpr = np.zeros((len(sat_angles), 10))
+        Hdr = np.zeros((len(sat_angles), 10))
+        HprSerial = np.zeros((1,10))
+        HdrSerial = np.zeros((1,10))
         sat_x = []
         sat_y = []
    
@@ -168,9 +169,9 @@ for i in range(int(60 * totalTime / dt)):
                     uy = dy / r_nom
                     Hpr[j][0] = ux
                     Hpr[j][1] = uy
-                    Hpr[j][6] = 1.0
+                    Hpr[j][8] = 1.0
                     
-                    pr_hat = r_nom + x_hat[6]
+                    pr_hat = r_nom + x_hat[8]
                     ux*=28
                     uy*=28
                     residualpr[j] = rawPRs[j] - pr_hat
@@ -201,7 +202,7 @@ for i in range(int(60 * totalTime / dt)):
             sat_plot.set_data(sat_x, sat_y)
             K = P @ Hpr.T @ np.linalg.inv (Hpr @ P @ Hpr.T + Rpr)
             error_states = K @ residualpr.T
-            P = (I8 -  K @ Hpr) @ P
+            P = (np.eye(10) -  K @ Hpr) @ P
             P = 0.5 * (P + P.T)
 
             # --- INJECTION STEP ---
@@ -214,6 +215,8 @@ for i in range(int(60 * totalTime / dt)):
             x_hat[ 5] += error_states[5]  
             x_hat[ 6] += error_states[6]
             x_hat[ 7] += error_states[7]
+            x_hat[ 8] += error_states[8]
+            x_hat[ 9] += error_states[9]
             
             for j in range(len(estimated_sat_pos)):
                 if j in active_prns:
@@ -224,16 +227,14 @@ for i in range(int(60 * totalTime / dt)):
                     ux = dx / r_nom
                     uy = dy / r_nom
                     
-                    Hdr[j][2] = ux * np.cos(x_hat[3]) + uy * np.sin(x_hat[3])
-                    Hdr[j][3] = ux * (-x_hat[2] * np.sin(x_hat[3])) + uy * (x_hat[2] * np.cos(x_hat[3]))
-                    Hdr[j][7] = 1.0
+                    Hdr[j][2] = ux
+                    Hdr[j][3] = uy 
+                    Hdr[j][9] = 1.0
 
                     #these sat vels are only valid for a circular flight path
                     satvelX = -GPS.constellation.angularVel * estimated_sat_pos[j][1]  
                     satvelY = GPS.constellation.angularVel * estimated_sat_pos[j][0]
-                    vx = x_hat[2] * np.cos(x_hat[3]) - satvelX
-                    vy = x_hat[2] * np.sin(x_hat[3]) - satvelY
-                    dr_hat = (ux * vx) + (uy * vy) + x_hat[7]
+                    dr_hat = (ux * (x_hat[2] - satvelX)) + (uy * (x_hat[3] - satvelY)) + x_hat[9]
                     residualdr[j] = rawDRs[j] - dr_hat
                     
                     # Expected relative velocity
@@ -246,7 +247,7 @@ for i in range(int(60 * totalTime / dt)):
             
             K = P @ Hdr.T @ np.linalg.inv (Hdr @ P @ Hdr.T + Rdr)
             error_states = K @ residualdr.T
-            P = (I8 -  K @ Hdr) @ P
+            P = (np.eye(10) -  K @ Hdr) @ P
             P = 0.5 * (P + P.T)
 
             x_hat[0] += error_states[0]  # Fix X
@@ -257,6 +258,8 @@ for i in range(int(60 * totalTime / dt)):
             x_hat[ 5] += error_states[5]  
             x_hat[ 6] += error_states[6]
             x_hat[ 7] += error_states[7]
+            x_hat[ 8] += error_states[8]
+            x_hat[ 9] += error_states[9]
         
         else:
             #serial incorporation of measurements
@@ -270,9 +273,9 @@ for i in range(int(60 * totalTime / dt)):
                     uy = dy / r_nom
                     HprSerial[0][0] = ux
                     HprSerial[0][1] = uy
-                    HprSerial[0][6] = 1.0
+                    HprSerial[0][8] = 1.0
                     
-                    pr_hat = r_nom + x_hat[6]
+                    pr_hat = r_nom + x_hat[8]
                     ux*=28
                     uy*=28
                     residualprSerial = np.array([rawPRs[j] - pr_hat])
@@ -299,9 +302,8 @@ for i in range(int(60 * totalTime / dt)):
                     
                     S_inv = 1.0 / (HprSerial @ P @ HprSerial.T + Rpr[0][0])
                     K = P @ HprSerial.T @ S_inv
-                    
                     error_states = K @ residualprSerial
-                    P = (I8 -  K @ HprSerial) @ P
+                    P = (np.eye(10) -  K @ HprSerial) @ P
                     P = 0.5 * (P + P.T)
 
                     # --- INJECTION STEP ---
@@ -314,6 +316,8 @@ for i in range(int(60 * totalTime / dt)):
                     x_hat[ 5] += error_states[5]  
                     x_hat[ 6] += error_states[6]
                     x_hat[ 7] += error_states[7]
+                    x_hat[ 8] += error_states[8]
+                    x_hat[ 9] += error_states[9]
                 
             for j in range(len(estimated_sat_pos)):
                 if j in active_prns:
@@ -324,16 +328,14 @@ for i in range(int(60 * totalTime / dt)):
                     ux = dx / r_nom
                     uy = dy / r_nom
                     
-                    HdrSerial[0][2] = ux * np.cos(x_hat[3]) + uy * np.sin(x_hat[3])
-                    HdrSerial[0][3] = ux * (-x_hat[2] * np.sin(x_hat[3])) + uy * (x_hat[2] * np.cos(x_hat[3]))
-                    HdrSerial[0][7] = 1.0
+                    HdrSerial[0][2] = ux
+                    HdrSerial[0][3] = uy
+                    HdrSerial[0][9] = 1.0
 
                     #these sat vels are only valid for a circular flight path
                     satvelX = -GPS.constellation.angularVel * estimated_sat_pos[j][1]  
                     satvelY = GPS.constellation.angularVel * estimated_sat_pos[j][0]
-                    vx = x_hat[2] * np.cos(x_hat[3]) - satvelX
-                    vy = x_hat[2] * np.sin(x_hat[3]) - satvelY
-                    dr_hat = (ux * vx) + (uy * vy) + x_hat[7]
+                    dr_hat = (ux * (x_hat[2] - satvelX)) + (uy * (x_hat[3] - satvelY)) + x_hat[9]
                     residualdrSerial = np.array([rawDRs[j] - dr_hat])
                     
                     # Expected relative velocity
@@ -346,8 +348,7 @@ for i in range(int(60 * totalTime / dt)):
                     S_inv = 1.0 / (HdrSerial @ P @ HdrSerial.T + Rdr[0][0])
                     K = P @ HdrSerial.T @ S_inv
                     error_states = K @ residualdrSerial
-                    
-                    P = (I8 -  K @ HdrSerial) @ P
+                    P = (np.eye(10) -  K @ HdrSerial) @ P
                     P = 0.5 * (P + P.T)
 
                     x_hat[0] += error_states[0]  # Fix X
@@ -358,8 +359,9 @@ for i in range(int(60 * totalTime / dt)):
                     x_hat[ 5] += error_states[5]  
                     x_hat[ 6] += error_states[6]
                     x_hat[ 7] += error_states[7]
+                    x_hat[ 8] += error_states[8]
+                    x_hat[ 9] += error_states[9]
         
-
 
     # 4. Visualization
     history_eskf_x.append(x_hat[0])
