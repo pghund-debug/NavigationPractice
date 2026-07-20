@@ -24,6 +24,8 @@ IMU = IMUSimulator(dt)
 H = np.array([[1, 0, 0, 0, 0, 0],
               [0, 1, 0, 0, 0, 0]])
 
+I6 = np.eye(6)
+
 sigma_accel_white = 0.04
 sigma_gyro_white = 0.006
 
@@ -99,6 +101,7 @@ else:
     #reses_y_line, = ax2.plot([], [], 'b-', label='ESKFY-Residual', alpha=0.6)
     ax2.legend()
 
+I6 = np.eye(6)
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     _, _, v, theta, _,_ = xe_hat.flatten()
@@ -139,7 +142,7 @@ for i in range(int(60 * totalTime / dt)):
         [0, 0, 0, 0, 0, 1]
     ])
 
-    F = np.eye(6)
+    F = I6.copy()
     F[0, 2] = np.cos(thetaES) * dt
     F[0, 3] = -vES * np.sin(thetaES) * dt
     F[1, 2] = np.sin(thetaES) * dt
@@ -165,12 +168,12 @@ for i in range(int(60 * totalTime / dt)):
         S = H @ P @ H.T + R
         K = P @ H.T @ np.linalg.inv(S)
         xe_hat = xe_hat + K @ (z - H @ xe_hat)
-        P = (np.eye(6) - K @ H) @ P
+        P = (I6 - K @ H) @ P
         
         Serror = H @ Perror @ H.T + R
         Kerror = Perror @ H.T @ np.linalg.inv(Serror)
         error_states = Kerror @ residuales
-        Perror = (np.eye(6) - Kerror @ H) @ Perror
+        Perror = (I6 - Kerror @ H) @ Perror
         # --- INJECTION STEP ---
         # Apply error estimations directly to nominal totals
         xes_hat[0] += error_states[0,0]  # Fix X

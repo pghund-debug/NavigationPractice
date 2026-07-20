@@ -83,6 +83,7 @@ reses_x_line, = ax2.plot([], [], 'b-', label='ESKFX-Residual', alpha=0.6)
 ax2.legend()
 now = datetime.now()
 
+I6 = np.eye(6)
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
     t = i * dt
@@ -114,7 +115,7 @@ for i in range(int(60 * totalTime / dt)):
     
     # 2. LINEARIZE
     # This is the derivative of the physics above
-    F = np.eye(6)
+    F = I6.copy()
     F[0, 2] = np.cos(thetaES) * dt
     F[0, 3] = -vES * np.sin(thetaES) * dt
     F[1, 2] = np.sin(thetaES) * dt
@@ -122,7 +123,7 @@ for i in range(int(60 * totalTime / dt)):
     F[2, 4] = -dt
     F[3, 5] = -dt
 
-    F2 = np.eye(6)
+    F2 = I6.copy()
     F2[0, 2] = np.cos(thetaES2) * dt
     F2[0, 3] = -vES2 * np.sin(thetaES2) * dt - 0.5 * a_corrES2[0] * np.sin(thetaES2) * dt**2
     F2[1, 2] = np.sin(thetaES2) * dt 
@@ -147,12 +148,12 @@ for i in range(int(60 * totalTime / dt)):
         Serror = H @ Perror @ H.T + R
         Kerror = Perror @ H.T @ np.linalg.inv(Serror)
         error_states = Kerror @ residuales
-        Perror = (np.eye(6) - Kerror @ H) @ Perror
+        Perror = (I6 - Kerror @ H) @ Perror
         
         Serror2 = H @ Perror2 @ H.T + R
         Kerror2 = Perror2 @ H.T @ np.linalg.inv(Serror2)
         error_states2 = Kerror2 @ residuales2
-        Perror2 = (np.eye(6) - Kerror2 @ H) @ Perror2
+        Perror2 = (I6 - Kerror2 @ H) @ Perror2
 
         # --- INJECTION STEP ---
         # Apply error estimations directly to nominal totals
