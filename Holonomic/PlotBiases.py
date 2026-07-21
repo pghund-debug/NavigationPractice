@@ -122,6 +122,7 @@ history_time = []
 history_Sx_est, history_Sx_true = [], []
 history_Sy_est, history_Sy_true = [], []
 history_Mxy_est, history_Mxy_true = [], []
+spin_rate = omega * 2.66
 
 for i in range(int(60 * totalTime / dt)):
     # Extract current state for readability
@@ -129,7 +130,7 @@ for i in range(int(60 * totalTime / dt)):
     # 1. Truth
     curr_x = radius * np.sin(omega * t)
     curr_y = radius * np.sin(2 * omega * t)
-    curr_theta = np.pi / 2 + t * omega
+    curr_theta = np.pi / 2 + t * spin_rate
     curr_velx = radius * omega * np.cos(omega * t)
     curr_vely = 2 * radius * omega * np.cos(2 * omega * t)
     curr_accx = -radius * omega**2 * np.sin(omega * t)
@@ -137,7 +138,7 @@ for i in range(int(60 * totalTime / dt)):
     body_ax = (curr_accx * np.cos(curr_theta)) + (curr_accy * np.sin(curr_theta))
     body_ay = -(curr_accx * np.sin(curr_theta)) + (curr_accy * np.cos(curr_theta))
 
-    ax, ay, omegahat, trueGyroBias, trueAccelXBias, trueAccelYBias, true_Sx, true_Sy, true_Mxy = IMU.generate_measurements(true_ax_body = body_ax, true_ay_body = body_ay, true_omega = omega)
+    ax, ay, omegahat, trueGyroBias, trueAccelXBias, trueAccelYBias, true_Sx, true_Sy, true_Mxy = IMU.generate_measurements(true_ax_body = body_ax, true_ay_body = body_ay, true_omega = spin_rate)
 
     ax_corr = ax - x_hat[5] # raw_accelx - b_ax
     ay_corr = ay - x_hat[6] # raw_accely - b_ay
@@ -173,7 +174,7 @@ for i in range(int(60 * totalTime / dt)):
     x2     += vx2 * dt
     y2     += vy2 * dt
     bclk2  += drift_clk2 * dt
-    x_hat2 = np.array([x2, y2, vx, vy2, theta2, bax2, bay2, bw2, Sx, Sy, Mxy, bclk2, drift_clk2])
+    x_hat2 = np.array([x2, y2, vx2, vy2, theta2, bax2, bay2, bw2, Sx, Sy, Mxy, bclk2, drift_clk2])
 
     # 2. LINEARIZE
     # This is the derivative of the physics above
