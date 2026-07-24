@@ -450,8 +450,8 @@ for i in range(int(60 * totalTime / dt)):
 
     if i%10==0:
         drone_dot.set_data([curr_x], [curr_y])
-        target_dot.set_data([curr_x_tgt/ 100], [curr_y_tgt/ 100])
+        target_dot.set_data([curr_x_tgt/ 200.0], [curr_y_tgt/ 200.0])
         eskf_path.set_data(history_eskf_x, history_eskf_y)
 
-#    plt.pause(0.0001)
+    #plt.pause(0.0001)
 plt.ioff(); plt.show()
